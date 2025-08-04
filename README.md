@@ -31,8 +31,8 @@ A professional-grade speech-to-text transcription application with AI-powered pr
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/travisgerrard/professional-dictation-transcriber.git
-   cd professional-dictation-transcriber
+   git clone https://github.com/travisgerrard/openscribe.git
+   cd openscribe
    ```
 
 2. **Install Python dependencies**
