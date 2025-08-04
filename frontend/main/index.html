@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <meta http-equiv="X-Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Citrix Transcriber</title>
+    <link rel="stylesheet" href="../styles/style.css">
+</head>
+<body>
+    <!-- Microphone Conflict Warning Banner (hidden by default) -->
+    <div id="mic-conflict-banner" class="mic-conflict-banner hidden">
+        <div class="conflict-icon">⚠️</div>
+        <div class="conflict-content">
+            <div class="conflict-title">Microphone Conflict Detected</div>
+            <div class="conflict-message" id="conflict-message">Safari or Chrome may be using the microphone for dictation</div>
+            <div class="conflict-suggestion">💡 Close browser dictation tabs or disable browser microphone access</div>
+        </div>
+        <button class="conflict-dismiss" id="conflict-dismiss">×</button>
+    </div>
+
+    <div id="app-container">
+        <div id="waveform-area">
+            <canvas id="waveform-canvas" width="550" height="40"></canvas>
+        </div>
+        <div id="control-bar">
+            <div class="status-indicators">
+                <span id="status-dot" class="dot"></span>
+                <span class="triangle-icon">▲</span>
+                <span id="mode-indicator" class="indicator-text" style="display: none;">Note</span> <!-- Hidden by default -->
+                <span id="processing-indicator" class="indicator-text" style="display: none;">Loading...</span> <!-- Hidden by default -->
+            </div>
+            <div class="buttons">
+                 <button id="always-on-top-button" title="Toggle Always on Top">📌</button> <!-- Pin icon -->
+                <button id="stop-button">Stop <kbd>Space</kbd></button>
+                <button id="cancel-button">Cancel <kbd>Esc</kbd></button>
+            </div>
+        </div>
+        <div id="thinking-area" class="expandable-area" style="display: none;">
+            <div id="thinking-header">
+                <span id="thinking-toggle-icon" class="toggle-icon">▼</span> <!-- Default to expanded -->
+                <span class="header-title-text">Thoughts</span>
+            </div>
+            <div id="thinking-content">
+                <!-- Actual thinking text will go here -->
+            </div>
+        </div>
+        <div id="response-area" class="expandable-area" style="display: none;">
+            <!-- Content for LLM response will go here -->
+        </div>
+    </div>
+
+
+    <!-- Hidden log for debugging if needed -->
+    <div id="output-log" style="display: none;">
+        <h2>Log</h2>
+        <pre id="log-content"></pre>
+    </div>
+
+    <script type="module" src="./renderer.js"></script>
+</body>
+</html>

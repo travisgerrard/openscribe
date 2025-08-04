@@ -1,0 +1,66 @@
+{
+  "audio_chunk_processing_ms": {
+    "metric_name": "audio_chunk_processing_ms",
+    "target_value": 50.0,
+    "tolerance_percentage": 50.0,
+    "unit": "ms",
+    "component": "audio",
+    "timestamp": 1748900282.252265
+  },
+  "transcription_latency_ms": {
+    "metric_name": "transcription_latency_ms",
+    "target_value": 200.0,
+    "tolerance_percentage": 100.0,
+    "unit": "ms",
+    "component": "vosk",
+    "timestamp": 1748900282.252266
+  },
+  "llm_response_time_ms": {
+    "metric_name": "llm_response_time_ms",
+    "target_value": 2000.0,
+    "tolerance_percentage": 200.0,
+    "unit": "ms",
+    "component": "llm",
+    "timestamp": 1748900282.252266
+  },
+  "llm_streaming_token_rate": {
+    "metric_name": "llm_streaming_token_rate",
+    "target_value": 10.0,
+    "tolerance_percentage": 100.0,
+    "unit": "tokens/sec",
+    "component": "llm",
+    "timestamp": 1748900282.252266
+  },
+  "frontend_render_time_ms": {
+    "metric_name": "frontend_render_time_ms",
+    "target_value": 150.0,
+    "tolerance_percentage": 75.0,
+    "unit": "ms",
+    "component": "frontend",
+    "timestamp": 1748900282.2522671
+  },
+  "end_to_end_workflow_ms": {
+    "metric_name": "end_to_end_workflow_ms",
+    "target_value": 3000.0,
+    "tolerance_percentage": 100.0,
+    "unit": "ms",
+    "component": "workflow",
+    "timestamp": 1748900282.2522671
+  },
+  "memory_usage_per_request_mb": {
+    "metric_name": "memory_usage_per_request_mb",
+    "target_value": 50.0,
+    "tolerance_percentage": 50.0,
+    "unit": "MB",
+    "component": "memory",
+    "timestamp": 1748900282.252268
+  },
+  "concurrent_requests_throughput": {
+    "metric_name": "concurrent_requests_throughput",
+    "target_value": 1.0,
+    "tolerance_percentage": 50.0,
+    "unit": "req/sec",
+    "component": "throughput",
+    "timestamp": 1748900282.252268
+  }
+}

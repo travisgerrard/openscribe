@@ -1,0 +1,127 @@
+{
+  "name": "professional-transcriber-electron",
+  "version": "1.0.0",
+  "description": "Electron frontend for the Professional Transcriber",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "npm run lint",
+    "lint": "eslint electron_*.js renderer*.js",
+    "lint:fix": "eslint electron_*.js renderer*.js --fix",
+    "audit:security": "npm audit --audit-level moderate",
+    "build:python": "pyinstaller build_backend.spec --clean",
+    "build:electron": "electron-builder",
+    "build": "npm run build:python && npm run build:electron",
+    "dist": "npm run build",
+    "pack": "electron-builder --dir"
+  },
+  "author": "Travis Gerrard",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^26.0.12",
+    "eslint": "^8.57.0"
+  },
+  "dependencies": {
+    "electron-store": "^7.0.3",
+    "python-shell": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.professionaltranscriber.app",
+    "productName": "Professional Transcriber",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!tests/**/*",
+      "!dist/**/*",
+      "!build/**/*",
+      "!*.py",
+      "!*.pyc",
+      "!__pycache__/**/*",
+      "!whisper_env/**/*",
+      "!node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!node_modules/*.d.ts",
+      "!node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/CitrixTranscriberBackend.app",
+        "to": "CitrixTranscriberBackend.app",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "vosk",
+        "to": "vosk",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "models",
+        "to": "models",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "user_settings.json",
+        "to": "user_settings.json"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "assets/icon-512.png",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "Professional Transcriber ${version}",
+      "iconSize": 100,
+      "contents": [
+        {
+          "x": 380,
+          "y": 280,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 110,
+          "y": 280,
+          "type": "file"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

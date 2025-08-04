@@ -1,0 +1,84 @@
+{
+  "name": "General Professional",
+  "description": "Common professional terms, technical vocabulary, and business terminology",
+  "version": "1.0.0",
+  "terms": {
+    "technical:algorithm": {
+      "correct": "algorithm",
+      "variations": [
+        "algorithm",
+        "algorithim",
+        "algoritm",
+        "algorithim"
+      ],
+      "category": "technical",
+      "description": "A set of rules or procedures for solving problems"
+    },
+    "technical:database": {
+      "correct": "database",
+      "variations": [
+        "database",
+        "data base",
+        "data base",
+        "databass"
+      ],
+      "category": "technical",
+      "description": "A structured collection of data"
+    },
+    "business:stakeholder": {
+      "correct": "stakeholder",
+      "variations": [
+        "stakeholder",
+        "stake holder",
+        "stakeholder",
+        "stake holder"
+      ],
+      "category": "business",
+      "description": "A person with an interest in a project or organization"
+    },
+    "business:infrastructure": {
+      "correct": "infrastructure",
+      "variations": [
+        "infrastructure",
+        "infra structure",
+        "infrastructure",
+        "infra structure"
+      ],
+      "category": "business",
+      "description": "Basic physical and organizational structures"
+    },
+    "general:professional": {
+      "correct": "professional",
+      "variations": [
+        "professional",
+        "profesional",
+        "profesional",
+        "profesional"
+      ],
+      "category": "general",
+      "description": "Relating to or connected with a profession"
+    },
+    "general:documentation": {
+      "correct": "documentation",
+      "variations": [
+        "documentation",
+        "documantation",
+        "documentation",
+        "documantation"
+      ],
+      "category": "general",
+      "description": "Material that provides official information or evidence"
+    }
+  },
+  "patterns": {
+    "data base -> database": 1,
+    "stake holder -> stakeholder": 1,
+    "infra structure -> infrastructure": 1,
+    "documantation -> documentation": 1
+  },
+  "categories": {
+    "technical": 2,
+    "business": 2,
+    "general": 2
+  }
+} 

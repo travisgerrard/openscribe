@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>Settings</title>
+    <style>
+        body { font-family: sans-serif; display: flex; margin: 0; height: 100vh; }
+        #sidebar { width: 200px; background-color: #f0f0f0; padding: 20px; border-right: 1px solid #ccc; }
+        #content { flex-grow: 1; padding: 20px; overflow-y: auto; }
+        .settings-section { margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], textarea { width: 90%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        textarea { height: 100px; }
+        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        ul { list-style: none; padding: 0; }
+        li { padding: 10px; cursor: pointer; border-radius: 4px; margin-bottom: 5px; }
+        li:hover, li.active { background-color: #e0e0e0; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2>Settings</h2>
+        <ul>
+            <li id="nav-wakewords" class="active">Wake Words</li>
+            <li id="nav-prompts">Prompts</li>
+            <li id="nav-models">AI Models</li>
+            <li id="nav-asr">ASR Model</li>
+            <li id="nav-vocabulary">Vocabulary</li>
+            <!-- Add other sections as needed -->
+        </ul>
+    </div>
+
+    <div id="content">
+        <div id="section-wakewords" class="settings-section">
+            <h2>Wake Words</h2>
+            <p>Enter the words or phrases (comma-separated) to trigger specific actions.</p>
+            <div>
+                <label for="wake-words-dictate-input">Dictation Wake Word(s):</label>
+                <input type="text" id="wake-words-dictate-input" placeholder="e.g., note, dictate">
+            </div>
+             <div>
+                <label for="wake-words-proofread-input">Proofread Wake Word(s):</label>
+                <input type="text" id="wake-words-proofread-input" placeholder="e.g., proof, check">
+            </div>
+             <div>
+                <label for="wake-words-letter-input">Letter Wake Word(s):</label>
+                <input type="text" id="wake-words-letter-input" placeholder="e.g., letter, message">
+            </div>
+            <button id="save-wake-words-button">Save Wake Words</button>
+            <p id="wake-words-status" style="color: green; margin-top: 10px;"></p>
+        </div>
+
+        <div id="section-prompts" class="settings-section" style="display: none;">
+            <h2>Prompts</h2>
+            <!-- Prompt settings will go here -->
+            <p>Configure the prompts used for different AI tasks.</p>
+             <div>
+                <label for="proofing-prompt-input">Proofreading Prompt:</label>
+                <textarea id="proofing-prompt-input" placeholder="Enter the prompt for proofreading... Use {text} as a placeholder for the dictated text."></textarea>
+            </div>
+             <div>
+                <label for="letter-prompt-input">Letter Writing Prompt:</label>
+                <textarea id="letter-prompt-input" placeholder="Enter the prompt for letter writing... Use {text} as a placeholder for the dictated text."></textarea>
+            </div>
+            <button id="save-prompts-button">Save Prompts</button>
+             <p id="prompts-status" style="color: green; margin-top: 10px;"></p>
+        </div>
+
+        <div id="section-models" class="settings-section" style="display: none;">
+            <h2>AI Models</h2>
+            <!-- Model selection will go here -->
+             <p>Select the AI models to use for different tasks.</p>
+             <div>
+                 <label for="proofing-model-select">Proofreading Model:</label>
+                 <select id="proofing-model-select">
+                     <option value="">Loading...</option>
+                     <!-- Models will be populated dynamically -->
+                 </select>
+             </div>
+             <div>
+                 <label for="letter-model-select">Letter Writing Model:</label>
+                 <select id="letter-model-select">
+                     <option value="">Loading...</option>
+                     <!-- Models will be populated dynamically -->
+                 </select>
+             </div>
+             <button id="save-models-button">Save Model Selection</button>
+             <p id="models-status" style="color: green; margin-top: 10px;"></p>
+        </div>
+
+    </div>
+
+    <div id="section-asr" class="settings-section" style="display: none;">
+        <h2>ASR Model</h2>
+        <p>Select the Automatic Speech Recognition (ASR) model to use for speech-to-text tasks.</p>
+        <div>
+            <label for="asr-model-select">ASR Model:</label>
+            <select id="asr-model-select">
+                <option value="">Loading...</option>
+                <!-- ASR models will be populated dynamically -->
+            </select>
+        </div>
+        <button id="save-asr-model-button">Save ASR Model</button>
+        <p id="asr-model-status" style="color: green; margin-top: 10px;"></p>
+    </div>
+
+    <div id="section-vocabulary" class="settings-section" style="display: none; padding-right: 30px; padding-bottom: 80px;">
+        <h2>Custom Vocabulary</h2>
+        <p>Manage your custom vocabulary to improve transcription accuracy.</p>
+        
+        <!-- Quick Add Term -->
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 8px; margin-bottom: 30px; overflow: hidden;">
+            <h3 style="margin-bottom: 25px; color: #333;">Add New Term</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 25px;">
+                <div>
+                    <label for="new-term-correct" style="display: block; margin-bottom: 8px; font-weight: bold; color: #555;">Correct Term:</label>
+                    <input type="text" id="new-term-correct" placeholder="e.g., azithromycin" 
+                           style="width: calc(100% - 24px); padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+                </div>
+                <div>
+                    <label for="new-term-variations" style="display: block; margin-bottom: 8px; font-weight: bold; color: #555;">Common Mistakes:</label>
+                    <input type="text" id="new-term-variations" placeholder="e.g., as throw my sin, azthr my sin"
+                           style="width: calc(100% - 24px); padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+                    <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Separate multiple variations with commas</small>
+                </div>
+            </div>
+            <div style="display: flex; gap: 25px; align-items: end;">
+                <div style="flex: 1;">
+                    <label for="new-term-category" style="display: block; margin-bottom: 8px; font-weight: bold; color: #555;">Category:</label>
+                    <select id="new-term-category" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+                        <option value="general">General</option>
+                        <option value="medication">Medication</option>
+                        <option value="medical_terms">Medical Terms</option>
+                        <option value="names">Names</option>
+                    </select>
+                </div>
+                <button id="add-term-button" style="background: #007bff; color: white; border: none; padding: 14px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; white-space: nowrap; min-width: 120px;">
+                    Add Term
+                </button>
+            </div>
+        </div>
+
+        <!-- Current Vocabulary -->
+        <div style="margin-bottom: 30px;">
+            <h3 style="margin-bottom: 15px;">Current Vocabulary</h3>
+            <div style="display: flex; justify-content: center; margin-bottom: 15px;">
+                <input type="text" id="vocab-search" placeholder="Search vocabulary..." 
+                       style="max-width: 400px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+            </div>
+            
+            <!-- Stats Summary -->
+            <div id="vocab-stats" style="background: #f0f8ff; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #e1ecf4;">
+                <strong>Vocabulary Stats:</strong> <span id="stats-text">Loading...</span>
+            </div>
+            
+            <!-- Vocabulary List -->
+            <div id="vocabulary-list" style="max-height: 450px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 20px;">
+                <div style="text-align: center; padding: 40px; color: #666;">
+                    Loading vocabulary...
+                </div>
+            </div>
+        </div>
+
+        <p id="vocabulary-status" style="color: green; margin-top: 15px; margin-bottom: 30px;"></p>
+    
+        <!-- Edit Term Modal -->
+        <div id="edit-term-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+            <div style="background: white; padding: 30px; border-radius: 8px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <h3 style="margin-bottom: 20px; color: #333;">Edit Vocabulary Term</h3>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #555;">Correct Term:</label>
+                    <input type="text" id="edit-term-correct" readonly 
+                           style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; background: #f8f9fa;">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #555;">Category:</label>
+                    <select id="edit-term-category" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                        <option value="general">General</option>
+                        <option value="medication">Medication</option>
+                        <option value="medical_terms">Medical Terms</option>
+                        <option value="names">Names</option>
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #555;">Current Variations:</label>
+                    <div id="edit-variations-list" style="border: 1px solid #ddd; border-radius: 6px; padding: 15px; background: #f8f9fa; min-height: 80px; line-height: 1.5;">
+                        <!-- Variations will be displayed here with delete buttons -->
+                    </div>
+                    <small style="color: #666; font-size: 12px; margin-top: 4px; display: block;">Click the × button to remove a variation</small>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #555;">Add New Variation:</label>
+                    <div style="display: flex; gap: 10px; align-items: stretch;">
+                        <input type="text" id="edit-new-variation-input" placeholder="e.g., new variation"
+                               style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; height: 48px; box-sizing: border-box;">
+                        <button id="add-variation-button" style="background: #28a745; color: white; border: none; padding: 12px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; white-space: nowrap; height: 48px; box-sizing: border-box;">
+                            Add
+                        </button>
+                    </div>
+                    <small style="color: #666; font-size: 12px; margin-top: 4px; display: block;">Type a variation and click Add to include it above</small>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button id="cancel-edit-button" style="background: #6c757d; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                        Cancel
+                    </button>
+                    <button id="save-edit-button" style="background: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./settings_renderer.js"></script>
+</body>
+</html>

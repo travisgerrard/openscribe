@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Proofing UI</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        html, body {
+            background: transparent;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="proofing-drag-bar">
+        <span class="drag-handle">≡</span> Proofing
+    </div>
+    
+    <div id="proofing-stream-container">
+        <div class="proofing-content">
+            <div id="proof-thinking" class="proof-thinking-box collapsed">
+                <div class="thinking-content">
+                    <div class="thinking-text">Analyzing your input...</div>
+                    <div class="thinking-toggle">Click to expand/collapse</div>
+                </div>
+            </div>
+            <div id="proof-message" class="proof-response-box">
+                <em>Nothing to proof yet. Enter or dictate text to see results here!</em>
+            </div>
+        </div>
+    </div>
+
+    <script src="proofing.js"></script>
+</body>
+</html>

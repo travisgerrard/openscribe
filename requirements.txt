@@ -1,0 +1,24 @@
+# Core dependencies
+pyaudio>=0.2.13
+webrtcvad>=2.0.10
+vosk==0.3.44
+numpy>=1.24.0
+phonetics>=1.0.5
+psutil>=5.9.0  # For memory monitoring
+mlx_lm>=0.16.2  # For local LLM inference
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-xvfb>=3.0.0
+mock>=5.0.0
+
+# Code quality dependencies
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+bandit>=1.7.0
+safety>=2.0.0
+
+# Development dependencies
+# pylint>=2.15.0

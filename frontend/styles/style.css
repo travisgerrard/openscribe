@@ -1,0 +1,933 @@
+/* Reset and Base Styles */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: transparent; /* For frameless window, app-container will set its own bg */
+    color: #e0e0e0; /* Default text color, can be overridden */
+    height: 100vh; /* Ensure body takes full viewport height */
+    display: flex;
+    flex-direction: column; /* Stack children vertically, e.g., app-container */
+    align-items: stretch; /* Stretch children to fill width */
+    overflow: hidden; /* Prevent body scrollbars, app-container will manage its own */
+}
+
+#proofing-stream-container {
+    margin: 0 auto;
+    width: 500px;
+    min-width: 400px;
+    max-width: 90vw;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    box-sizing: border-box;
+    min-height: 100vh;
+    position: relative;
+}
+
+.proofing-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
+  height: calc(100vh - 48px);   /* full height minus drag‑bar & padding */
+  overflow-y: auto;             /* scrolls when thinking + response exceed view */
+  padding-right: 4px;           /* room for scrollbar */
+}
+
+#proofing-stream-container {
+    /* Make top 32px draggable */
+    position: relative;
+}
+#proofing-drag-bar {
+  height: 12px;
+  min-height: 12px;
+  max-height: 16px;
+  display: flex;
+  align-items: center;
+  padding-left: 4px;
+  padding-right: 4px;
+  font-size: 10px;
+  color: #888;
+  background: linear-gradient(90deg,#23272e 70%,#23272e44 100%);
+  border-radius: 8px 8px 0 0;
+  user-select: none;
+  -webkit-app-region: drag;
+  box-shadow: 0 1px 2px #0002;
+}
+
+/* Thinking text container */
+.proof-thinking-box {
+  background: #1e1e1e;
+  color: #b8c2cc;
+  border: 1px dashed #4a4a4a;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 8px 0;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  max-height: 40vh;          /* grow with content up to 40% viewport */
+  transition: max-height .3s ease;
+  min-height: 40px;
+}
+
+/* Collapsed state */
+.proof-thinking-box.collapsed {
+  max-height: 28px;        /* very slim bar when collapsed */
+  overflow: hidden;
+  padding: 6px 12px;       /* tighter padding */
+  opacity: .35;            /* subtle, like the screenshots */
+  cursor: pointer;
+}
+
+/* First sentence preview when collapsed */
+.proof-thinking-box.collapsed .thinking-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Allow scrolling when expanded */
+.proof-thinking-box:not(.collapsed) {
+  overflow-y: auto;
+}
+
+/* Expand/collapse indicator */
+.proof-thinking-box::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: linear-gradient(to bottom, transparent, #1e1e1e);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.proof-thinking-box:not(.collapsed)::after {
+  opacity: 0;
+}
+
+/* Thinking text content */
+.thinking-text {
+  color: #b8c2cc;
+  font-style: italic;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 0;
+  line-height: 1.6;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Final response box */
+.proof-response-box {
+  background: #1e1e1e;
+  color: #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 8px 0;
+  min-height: 60px;
+  /* max-height: 70vh; removed, now handled by flex */
+  overflow-y: auto;     /* guarantee scroll even after resize */
+  font-size: 15px;
+  line-height: 1.7;
+  box-sizing: border-box;
+  border: 1px solid #3e3e3e;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Style for the thinking text */
+.thinking-text {
+  color: #888;
+  font-style: italic;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 0;
+  line-height: 1.5;
+}
+
+/* Final output text */
+.proof-response-box {
+  color: #fff;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 0;
+  line-height: 1.6;
+  font-size: 15px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Bullet points in output */
+.proof-response-box ul {
+  margin: 0.5em 0;
+  padding-left: 24px;
+  list-style-type: none;
+}
+
+.proof-response-box li {
+  margin-bottom: 0.5em;
+  position: relative;
+  line-height: 1.6;
+  padding-left: 16px;
+  text-indent: -16px;
+}
+
+.proof-response-box li:before {
+  content: '•';
+  color: #4a9eff;
+  margin-right: 8px;
+  position: relative;
+  left: 0;
+  font-weight: bold;
+}
+
+/* Streamed chunks */
+.proof-streamed-chunk {
+display: block;
+margin-bottom: 4px;
+line-height: 1.6;
+}
+
+/* Styles for expandable areas in the main window */
+/* General styling for both thinking and response areas */
+.expandable-area {
+    width: calc(100% - 20px); /* Adjusted width for narrower container */
+    margin: 0px 10px;      /* Remove top/bottom margin, keep horizontal */
+    padding: 10px 15px;    /* Internal padding */
+    border-radius: 8px;    /* Rounded corners like the image */
+    background-color: rgba(44, 44, 46, 0.85); /* Dark background #2c2c2e with 85% opacity */
+    color: #e0e0e0;        /* Light text */
+    box-sizing: border-box;
+    border: 1px solid rgba(56, 56, 58, 0.85); /* Subtle border #383838 with 85% opacity */
+    overflow-y: auto; 
+    /* display: none; is handled by inline style + JS */
+}
+
+#thinking-area {
+    background: rgba(44, 44, 46, 0.95);
+    border: 1px solid #4a4a4a;
+    border-radius: 8px;
+    margin: 0px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+#thinking-header {
+    background: rgba(60, 60, 62, 0.95);
+    border-bottom: 1px solid #4a4a4a;
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+#thinking-header:hover {
+    background: rgba(70, 70, 72, 0.95);
+}
+
+#thinking-toggle-icon {
+    color: #888;
+    margin-right: 8px;
+    font-size: 12px;
+    transition: transform 0.2s ease;
+}
+
+#thinking-header .header-title-text {
+    color: #e0e0e0;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    font-style: normal; /* Override any italic from parent */
+}
+
+#thinking-summary {
+    color: #a0a0a0;
+    font-size: 13px;
+    font-style: italic;
+    margin-left: 10px;
+}
+
+#thinking-content {
+    padding: 10px 12px;
+    background: rgba(44, 44, 46, 0.95);
+    color: #d0d0d0;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 40vh; /* Limit to 40% of viewport height */
+    overflow-y: auto; /* Add scrolling when content exceeds max height */
+    transition: all 0.3s ease;
+    font-style: italic;
+}
+
+/* Collapsed state for the thinking area */
+#thinking-area.collapsed {
+    /* When collapsed, the main thinking area should not contribute extra space beyond its header */
+    margin-bottom: 0; /* Remove bottom margin when collapsed if it causes spacing issues */
+    /* It will effectively take the height of its header due to flex properties */
+}
+
+#thinking-area.collapsed #thinking-content {
+    max-height: 0;
+    padding: 0; /* Remove all padding when collapsed */
+    opacity: 0;
+    overflow: hidden; /* Hide content completely when collapsed */
+}
+
+#thinking-area.collapsed #thinking-toggle-icon {
+    transform: rotate(-90deg); /* Rotate icon when collapsed */
+}
+
+#response-area {
+    background: rgba(44, 44, 46, 0.95);
+    border: 1px solid #4a4a4a;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0px 0px 0px;
+    color: #e0e0e0;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 40vh; /* Limit to 40% of viewport height */
+    overflow-y: auto; /* Add scrolling when content exceeds max height */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    min-height: auto; /* Allow natural height based on content */
+}
+
+/* General text styling within these areas if not overridden by more specific elements */
+/* (No general rule here for now to avoid unintended consequences) */
+
+/* Waveform Area */
+#waveform-area {
+    padding: 10px 25px 5px 25px; /* Reduced padding */
+    text-align: center;
+    background-color: #1e1e1e; /* Same as container */
+    border-bottom: 1px solid #333; /* Subtle separator */
+    height: 40px; /* Match canvas height */
+    display: flex; /* Center canvas */
+    justify-content: center;
+    align-items: center;
+    /* Waveform area should also be draggable */
+}
+
+#waveform-canvas {
+    /* Style the canvas if needed, though drawing is done via JS */
+    background-color: #1e1e1e; /* Match area background */
+    -webkit-app-region: no-drag; /* Prevent canvas itself from interfering if needed, though usually okay */
+}
+
+/* Control Bar */
+#control-bar {
+    display: flex;
+    justify-content: space-between; /* Space out icons and buttons */
+    align-items: center;
+    padding: 8px 15px; /* Adjust padding */
+    background-color: #2f2f2f; /* Slightly lighter control bar */
+    min-height: 28px; /* Ensure consistent height */
+    /* Add margin-bottom for padding below the buttons */
+    margin-bottom: 5px; /* Adjust as needed */
+     /* Control bar should also be draggable */
+}
+
+/* Status Indicators (Left Side) */
+.status-indicators {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Space between elements */
+    -webkit-app-region: no-drag; /* Make indicators non-draggable so they don't interfere */
+}
+
+#status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #8e8e93; /* Default grey */
+    transition: background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    box-shadow: none;
+    display: inline-block;
+}
+
+.triangle-icon {
+    font-size: 14px;
+    color: #999; /* Greyish color for triangle */
+    flex-shrink: 0;
+}
+
+.indicator-text {
+    font-size: 12px;
+    color: #bbb;
+    background-color: #444;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    flex-shrink: 0;
+}
+
+/* Buttons (Right Side) */
+.buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Space between buttons */
+    -webkit-app-region: no-drag; /* Make buttons non-draggable */
+}
+
+#control-bar button {
+    background-color: #444; /* Darker button background */
+    color: #ccc; /* Light grey text */
+    border: 1px solid #555;
+    border-radius: 5px;
+    padding: 4px 10px; /* Adjust padding */
+    font-size: 13px;
+    cursor: pointer;
+    display: flex; /* Align text and kbd */
+    align-items: center;
+    gap: 5px; /* Space between button text and kbd */
+    transition: background-color 0.2s ease;
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+#control-bar button:hover {
+    background-color: #555;
+}
+
+#control-bar button kbd {
+    background-color: #5a5a5a; /* Slightly lighter kbd background */
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    border: 1px solid #6a6a6a;
+    box-shadow: inset 0 -1px 0 #444;
+    color: #ddd;
+}
+
+/* Specific style for Always on Top button */
+#always-on-top-button {
+    padding: 4px 6px; /* Make it smaller */
+    font-size: 14px; /* Adjust icon size */
+}
+#always-on-top-button.active {
+    background-color: #007aff; /* Blue when active */
+    border-color: #0056b3;
+    color: white;
+}
+
+
+/* Proofing UI Modern Card Style */
+.proof-card {
+    background: #23272e;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.14);
+    margin-bottom: 18px;
+    padding: 0 0 10px 0;
+    border: 1px solid #32363c;
+    width: 100%;
+    min-width: 220px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.proof-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #23272e;
+    border-bottom: 1px solid #32363c;
+    padding: 10px 18px 7px 18px;
+}
+.proof-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #38a1ff;
+    letter-spacing: 0.03em;
+}
+.proof-timer {
+    font-size: 13px;
+    color: #bbb;
+    font-style: italic;
+    margin-left: 12px;
+}
+.proof-section {
+    padding: 14px 18px 6px 18px;
+    min-height: 32px;
+    white-space: pre-wrap;
+    font-size: 15px;
+    line-height: 1.6;
+}
+.proof-thinking {
+    color: #38a1ff;
+    font-style: italic;
+    background: #21273a;
+    border-radius: 0 0 8px 8px;
+    border-left: 4px solid #38a1ff;
+}
+.proof-response {
+    color: #38c759;
+    font-weight: 500;
+    background: #1d2a1d;
+    border-radius: 0 0 8px 8px;
+    border-left: 4px solid #38c759;
+}
+
+.proof-bubble {
+  background: #222d3a;
+  color: #e0e0e0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  margin-bottom: 6px;
+  font-size: 15px;
+  line-height: 1.5;
+  max-width: 95%;
+  max-height: 180px;
+  overflow-y: auto;
+  word-break: break-word;
+}
+
+.proof-thinking {
+  color: #38a1ff;
+  font-style: italic;
+  background: #21273a;
+  border-radius: 0 0 8px 8px;
+  border-left: 4px solid #38a1ff;
+  padding: 10px 18px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  display: block;
+}
+
+
+.proof-meta {
+  font-size: 12px;
+  color: #999;
+  padding: 0 18px 8px 18px;
+  display: flex;
+  justify-content: space-between;
+  opacity: 0.85;
+}
+
+/* Hide the debug log by default */
+#output-log {
+    display: none;
+}
+/* Let thinking box size to its content, never shrink the response */
+.proof-thinking-box {
+  flex: 0 0 auto;   /* keep natural height */
+}
+
+.proof-response-box {
+  flex: 1 1 auto;   /* take the remaining space, but shrink if window small */
+  overflow-y: auto; /* internal scroll for long outputs */
+  max-height: none; /* rely on flex instead of fixed 70vh */
+}
+
+/* === New UI Styles - Added by Cascade === */
+
+#app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Full height of body */
+    width: 100%;   /* Full width of body */
+    background-color: rgba(30, 30, 30, 0.85); /* Semi-transparent background */
+    padding: 5px;
+    box-sizing: border-box;
+    overflow: hidden; /* Prevent app container itself from scrolling */
+}
+
+#model-info-area {
+    padding: 4px 8px;
+    font-size: 11px;
+    color: #999;
+    text-align: left;
+    height: 20px; /* Fixed height */
+    line-height: 20px;
+    flex-shrink: 0; /* Prevent shrinking */
+    border-bottom: 1px solid #333; /* Subtle separator */
+    margin-bottom: 5px;
+    display: none; /* Hidden by default, shown during proofing */
+}
+
+/* Ensure waveform and control bar don't shrink and have some spacing */
+#waveform-area {
+    flex-shrink: 0;
+    margin-bottom: 5px; /* Space below waveform */
+    /* Existing styles for canvas size will dictate height */
+}
+
+#control-bar {
+    flex-shrink: 0; /* Already has styling, ensure it doesn't shrink */
+    margin-bottom: 8px; /* Space below control bar */
+}
+
+/* Augmenting #thinking-area styles */
+#thinking-area {
+    border: 1px solid #4a4a4a; /* Darker, more subtle border */
+    border-radius: 5px;
+    background-color: #262626; /* Slightly different background */
+    margin-bottom: 8px;
+    display: flex; /* It's already flex, ensure it */
+    flex-direction: column;
+    flex-shrink: 0; /* It will manage its own size via JS or content */
+    /* .expandable-area and display:none are handled by JS */
+}
+
+#thinking-header {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    background-color: #303030; /* Header background */
+    cursor: pointer;
+    border-bottom: 1px solid #4a4a4a; /* Separator for content */
+    border-top-left-radius: 4px; /* Match parent border-radius */
+    border-top-right-radius: 4px; /* Match parent border-radius */
+}
+
+#thinking-area.collapsed #thinking-header {
+    border-bottom: none; /* No border when collapsed */
+    border-bottom-left-radius: 4px; /* Match parent border-radius when collapsed */
+    border-bottom-right-radius: 4px; /* Match parent border-radius when collapsed */
+}
+
+#thinking-toggle-icon {
+    margin-right: 8px;
+    font-size: 13px; /* Smaller icon */
+    color: #ccc;
+    /* transition: transform 0.2s ease-in-out; -- Already exists */
+}
+
+/* .header-title-text is an existing class, ensure it works in new context */
+#thinking-header .header-title-text {
+    font-weight: 500; /* Medium weight */
+    font-size: 13px;
+    color: #ddd;
+    flex-grow: 1;
+    font-style: normal; /* Ensure not italic if parent is */
+}
+
+#thinking-summary { /* This is the new ID for summary text */
+    font-size: 11px;
+    color: #aaa;
+    margin-left: 10px; /* Space from title */
+    font-style: italic;
+}
+
+#thinking-content {
+    padding: 8px 10px;
+    overflow-y: auto;
+    max-height: 150px; /* Limit height, allow internal scroll (approx 7-8 lines) */
+    min-height: 20px; /* Minimum visible height when expanded */
+    color: #c0c0c0;
+    font-size: 12px;
+    line-height: 1.5;
+    background-color: #262626; /* Match thinking-area bg */
+    border-bottom-left-radius: 4px; /* Match parent border-radius */
+    border-bottom-right-radius: 4px; /* Match parent border-radius */
+    /* Ensure existing styles for italic etc. are considered or overridden if needed */
+}
+
+/* Augmenting #response-area styles */
+#response-area {
+    flex-grow: 1; /* Takes up remaining vertical space */
+    padding: 10px;
+    overflow-y: auto;
+    background-color: #222222; /* Slightly different from thinking area */
+    border: 1px solid #404040;
+    border-radius: 5px;
+    color: #e0e0e0;
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 50px; /* Ensure it's visible */
+    max-height: 250px; /* Limit height, allow internal scroll if content exceeds this */
+    /* .expandable-area and display:none are handled by JS */
+}
+
+#stats-footer {
+    padding: 4px 8px;
+    font-size: 11px;
+    color: #999;
+    text-align: right;
+    height: 20px; /* Fixed height */
+    line-height: 20px;
+    flex-shrink: 0; /* Prevent shrinking */
+    border-top: 1px solid #333; /* Subtle separator */
+    margin-top: 5px; /* Space from response area */
+    display: none; /* Hidden by default, shown during proofing */
+}
+
+/* Minor adjustments to existing elements if needed */
+.status-indicators, .buttons {
+    -webkit-app-region: no-drag; /* Ensure these parts are not draggable */
+}
+
+/* === End of New UI Styles === */
+
+/* Modern Card-based Proofing UI */
+#expansion-areas-container {
+    padding: 0px;
+    max-height: none;
+    overflow: visible;
+    margin: 0px;
+    min-height: 0; /* Allow natural height */
+}
+
+#thinking-area {
+    background: rgba(44, 44, 46, 0.95);
+    border: 1px solid #4a4a4a;
+    border-radius: 8px;
+    margin: 0px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+#thinking-header {
+    background: rgba(60, 60, 62, 0.95);
+    border-bottom: 1px solid #4a4a4a;
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+#thinking-header:hover {
+    background: rgba(70, 70, 72, 0.95);
+}
+
+#thinking-toggle-icon {
+    color: #888;
+    margin-right: 8px;
+    font-size: 12px;
+    transition: transform 0.2s ease;
+}
+
+#thinking-header .header-title-text {
+    color: #e0e0e0;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    font-style: normal; /* Override any italic from parent */
+}
+
+#thinking-summary {
+    color: #a0a0a0;
+    font-size: 13px;
+    font-style: italic;
+    margin-left: 10px;
+}
+
+#thinking-content {
+    padding: 10px 12px;
+    background: rgba(44, 44, 46, 0.95);
+    color: #d0d0d0;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 40vh; /* Limit to 40% of viewport height */
+    overflow-y: auto; /* Add scrolling when content exceeds max height */
+    transition: all 0.3s ease;
+}
+
+/* Collapsed state for thinking area */
+#thinking-area.collapsed #thinking-content {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    overflow: hidden;
+}
+
+#thinking-area.collapsed #thinking-toggle-icon {
+    transform: rotate(-90deg);
+}
+
+#response-area {
+    background: rgba(44, 44, 46, 0.95);
+    border: 1px solid #4a4a4a;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0px 0px 0px;
+    color: #e0e0e0;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 40vh; /* Limit to 40% of viewport height */
+    overflow-y: auto; /* Add scrolling when content exceeds max height */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    min-height: auto; /* Allow natural height based on content */
+}
+
+/* Stats footer styling for proofing mode */
+#stats-footer {
+    padding: 4px 10px;
+    background: rgba(30, 30, 32, 0.9);
+    border-top: 1px solid #4a4a4a;
+    color: #888;
+    font-size: 12px;
+    text-align: center;
+    border-radius: 0 0 8px 8px;
+    margin: 0px;
+}
+
+/* Model info area styling for proofing mode */
+#model-info-area {
+    padding: 4px 10px;
+    background: rgba(30, 30, 32, 0.9);
+    border-bottom: 1px solid #4a4a4a;
+    color: #a0a0a0;
+    font-size: 12px;
+    text-align: center;
+    border-radius: 8px 8px 0 0;
+    margin: 0px;
+}
+
+/* Error pulse animation for microphone issues */
+@keyframes pulse-error {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Additional error state styling */
+#status-dot.error {
+    background-color: #ff3b30;
+    box-shadow: 0 0 5px #ff3b30;
+    animation: pulse-error 2s infinite;
+}
+
+/* Microphone Conflict Warning Banner */
+.mic-conflict-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: linear-gradient(135deg, #ff6b35, #ff8e53);
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+    border-bottom: 2px solid #ff4411;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+.mic-conflict-banner.hidden {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.mic-conflict-banner.visible {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: all;
+}
+
+.conflict-icon {
+    font-size: 24px;
+    animation: pulse-warning 2s infinite;
+}
+
+@keyframes pulse-warning {
+    0%, 100% { 
+        transform: scale(1); 
+        opacity: 1; 
+    }
+    50% { 
+        transform: scale(1.1); 
+        opacity: 0.8; 
+    }
+}
+
+.conflict-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.conflict-title {
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.2;
+}
+
+.conflict-message {
+    font-size: 12px;
+    opacity: 0.9;
+    line-height: 1.3;
+}
+
+.conflict-suggestion {
+    font-size: 11px;
+    opacity: 0.8;
+    font-style: italic;
+    line-height: 1.3;
+}
+
+.conflict-dismiss {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background-color 0.2s;
+    flex-shrink: 0;
+}
+
+.conflict-dismiss:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.conflict-dismiss:active {
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0.95);
+}
+
+/* Adjust main content when banner is visible */
+body.conflict-banner-visible {
+    padding-top: 60px;
+}
