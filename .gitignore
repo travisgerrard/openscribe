@@ -242,18 +242,22 @@ build/
 *.pkg
 
 # Project-specific
-# Audio/Model files (too large for repository)
+# Large AI models (downloaded on first run)
 models/
-vosk/
-vosk-model-*/
+model_cache_*/
+model_cache_whisper/
+whisper_env/
+
+# Audio files
 *.wav
 *.mp3
 *.m4a
 temp_audio/
 cache/
-model_cache_*/
-model_cache_whisper/
-whisper_env/
+
+# Vosk model files (included in repository for immediate functionality)
+# Note: Vosk model files are essential for wake word detection
+# They are ~68MB total and included for user convenience
 
 # User-specific data (should not be committed)
 data/user_vocabulary.json
