@@ -1,4 +1,4 @@
-# Professional Transcriber
+# Professional Dictation Transcriber
 
 A professional-grade speech-to-text transcription application with AI-powered proofreading and formatting capabilities. Built with Python, Electron, and modern AI models.
 
@@ -31,8 +31,8 @@ A professional-grade speech-to-text transcription application with AI-powered pr
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/professional-transcriber.git
-   cd professional-transcriber
+   git clone https://github.com/travisgerrard/professional-dictation-transcriber.git
+   cd professional-dictation-transcriber
    ```
 
 2. **Install Python dependencies**
