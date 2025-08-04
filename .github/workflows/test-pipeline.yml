@@ -188,4 +188,4 @@ jobs:
     
     - name: Generate quality report summary
       run: |
-        echo "Code quality checks completed" > quality-summary.txt 
+        echo "Code quality checks completed" > quality-summary.txt # Trigger new workflow run
