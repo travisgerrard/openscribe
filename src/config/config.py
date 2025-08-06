@@ -101,6 +101,12 @@ AVAILABLE_LLMS = {
     "Qwen3-8B-4bit": "mlx-community/Qwen3-8B-4bit",
     "Qwen3-14B-4bit-AWQ": "mlx-community/Qwen3-14B-4bit-AWQ",
     "DeepSeek-R1-DWQ-8B-4bit": "mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit-DWQ",
+    # TODO: GPT-OSS-20B Integration
+    # "GPT-OSS-20B-Q8": "mlx-community/gpt-oss-20b-mlx-q8",  # 20B parameters, 8-bit quantization
+    # Status: Model repository contains only documentation files, not actual model weights
+    # Expected benefits: Enhanced reasoning, chain-of-thought, configurable reasoning levels
+    # Memory requirements: ~40-50GB download, 16GB+ RAM recommended
+    # Enable when model files become available in the repository
     # Add other models as needed
 }
 
