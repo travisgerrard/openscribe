@@ -101,6 +101,7 @@ AVAILABLE_LLMS = {
     "Qwen3-8B-4bit": "mlx-community/Qwen3-8B-4bit",
     "Qwen3-14B-4bit-AWQ": "mlx-community/Qwen3-14B-4bit-AWQ",
     "DeepSeek-R1-DWQ-8B-4bit": "mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit-DWQ",
+    "Qwen3-30B-Thinking-4bit": "mlx-community/Qwen3-30B-A3B-Thinking-2507-4bit",  # 30B model with thinking capabilities
     # TODO: GPT-OSS-20B Integration
     # "GPT-OSS-20B-Q8": "mlx-community/gpt-oss-20b-mlx-q8",  # 20B parameters, 8-bit quantization
     # Status: Model repository contains only documentation files, not actual model weights
