@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenScribe — Professional Dictation Transcriber</title>
+  <meta name="description" content="OpenScribe is a professional-grade speech‑to‑text transcription app with AI-powered proofreading and custom vocabulary training." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg: #0b1020;          /* deep navy */
+      --panel: #0f152a;       /* card bg */
+      --muted: #7b8aa5;       /* muted text */
+      --text: #e6ecff;        /* main text */
+      --brand: #7c9cff;       /* brand primary */
+      --brand-2: #9e77ff;     /* brand accent */
+      --ring: rgba(124,156,255,.45);
+      --ok: #20d27d;
+      --bad: #ff6464;
+      --border: #233055;
+      --code: #0b132b;
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg:#f6f7fb; --panel:#ffffff; --muted:#50607d; --text:#0c1429; --brand:#345dff; --brand-2:#7a42ff; --ring:rgba(52,93,255,.25); --border:#e6e9f3; --code:#101826;
+      }
+    }
+    html,body{height:100%}
+    body{margin:0;background:radial-gradient(1200px 600px at 10% -10%, rgba(124,156,255,.15), transparent 60%),
+                         radial-gradient(1000px 500px at 90% -20%, rgba(158,119,255,.12), transparent 60%),
+                         var(--bg);
+         color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,"Helvetica Neue",Arial,"Apple Color Emoji","Segoe UI Emoji";line-height:1.6}
+    a{color:var(--brand);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .wrapper{max-width:1100px;margin:0 auto;padding:28px}
+    .nav{display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .logo{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.2px}
+    .logo-mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;box-shadow:0 6px 18px rgba(124,156,255,.35)}
+    .logo-mark svg{filter:drop-shadow(0 2px 6px rgba(0,0,0,.25))}
+    .nav-cta{display:flex;gap:10px}
+    .btn{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:10px 14px;border-radius:12px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.08);transition:transform .06s ease, box-shadow .2s ease, border-color .2s ease}
+    .btn:hover{transform:translateY(-1px);text-decoration:none;box-shadow:0 10px 24px rgba(0,0,0,.15);border-color:var(--ring)}
+    .btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand-2));border:none}
+    .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;align-items:center;padding:56px 0}
+    .hero h1{font-size:clamp(34px,6.2vw,56px);line-height:1.05;margin:0 0 16px;font-weight:800}
+    .hero p{font-size:clamp(16px,2.2vw,18px);color:var(--muted);margin:0 0 18px}
+    .hero .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:22px}
+    .grid{display:grid;gap:16px}
+    .grid.features{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));}
+     .muted{color:var(--muted)}
+    .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+    .badge{display:inline-flex;gap:8px;align-items:center;background:rgba(124,156,255,.12);border:1px solid var(--ring);padding:8px 12px;border-radius:12px}
+     .code{background:var(--code);border-radius:14px;border:1px solid var(--border);padding:14px;overflow:auto}
+     .code, .code code{color:#e6ecff}
+    pre{margin:0} code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:14px}
+    h2{margin:30px 0 12px;font-size:28px}
+    h3{margin:22px 0 10px;font-size:18px}
+    ul{margin:0 0 0 20px}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    @media (max-width: 920px){
+      .hero{grid-template-columns:1fr}
+      .two-col{grid-template-columns:1fr}
+    }
+    .footer{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin:48px 0 16px;color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border:1px solid var(--border);padding:8px 12px;border-radius:999px}
+    .copy-btn{cursor:pointer;border:none;background:transparent;color:var(--brand);font-weight:700}
+  </style>
+  <script>
+    function copyCode(id){
+      const el = document.getElementById(id);
+      if(!el) return;
+      const text = el.innerText.trim();
+      navigator.clipboard.writeText(text).then(()=>{
+        const btn = el.closest('.card').querySelector('.copy-btn');
+        if(btn){ btn.textContent = 'Copied!'; setTimeout(()=> btn.textContent='Copy', 1400); }
+      });
+    }
+  </script>
+</head>
+<body>
+  <header class="wrapper nav">
+    <div class="logo">
+      <div class="logo-mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" role="img">
+          <path d="M6 12a6 6 0 1112 0 6 6 0 01-12 0z" fill="white" fill-opacity=".92"/>
+          <path d="M3 12C3 6.477 7.477 2 13 2c.552 0 1 .448 1 1v5a4 4 0 11-4 4H5c-1.105 0-2-.895-2-2z" fill="white" fill-opacity=".6"/>
+        </svg>
+      </div>
+      <span>OpenScribe</span>
+    </div>
+    <nav class="nav-cta">
+      <a class="btn" href="https://github.com/travisgerrard/openscribe" target="_blank" rel="noopener">View on GitHub</a>
+      <a class="btn primary" href="#install">Get Started</a>
+    </nav>
+  </header>
+
+  <main class="wrapper">
+    <section class="hero">
+      <div>
+        <span class="kicker">AI‑Powered Dictation</span>
+        <h1>Professional transcription with <span style="background:linear-gradient(135deg,var(--brand),var(--brand-2));-webkit-background-clip:text;background-clip:text;color:transparent">proofreading</span> & custom vocabulary.</h1>
+        <p>OpenScribe converts your speech to clean, formatted text in real time. Built with a Python backend and an Electron front‑end, it runs locally for speed and privacy. Add specialized terms, trigger actions by hotkeys or wake‑words, and ship notes faster.</p>
+        <div class="cta">
+          <a class="btn primary" href="#install">Install</a>
+          <a class="btn" href="#features">Features</a>
+          <a class="btn" href="#requirements">Requirements</a>
+        </div>
+        <p class="badge" style="margin-top:14px">MIT Licensed · macOS · Windows · Linux</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">What you get</h3>
+        <div class="grid features">
+          <div>
+            <strong>Real‑time STT</strong>
+            <p class="muted">Fast local recognition (Whisper/Parakeet).</p>
+          </div>
+          <div>
+            <strong>AI proofreading</strong>
+            <p class="muted">Auto‑clean up grammar, style & formatting.</p>
+          </div>
+          <div>
+            <strong>Custom vocabulary</strong>
+            <p class="muted">Teach domain terms; map variants to canon.</p>
+          </div>
+          <div>
+            <strong>Hotkeys & wake‑words</strong>
+            <p class="muted">Global shortcuts + optional voice triggers.</p>
+          </div>
+          <div>
+            <strong>Cross‑platform</strong>
+            <p class="muted">Runs on macOS, Windows, and Linux.</p>
+          </div>
+          <div>
+            <strong>Privacy‑first</strong>
+            <p class="muted">Audio stays local unless you opt‑in.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="install" class="two-col">
+      <div class="card">
+        <h2 style="margin-top:0">Quick install</h2>
+        <p class="muted">Clone the repo, install dependencies, then run. First launch fetches models automatically (can take 10–30 minutes depending on connection).</p>
+        <div class="code" aria-label="Installation code block">
+          <button class="copy-btn" onclick="copyCode('block-install')" title="Copy commands">Copy</button>
+<pre id="block-install"><code># 1) Clone
+git clone https://github.com/travisgerrard/openscribe.git
+cd openscribe
+
+# 2) Python deps
+pip install -r requirements.txt
+
+# 3) Node deps
+npm install
+
+# 4) Start app (auto-downloads models on first run)
+npm start</code></pre>
+        </div>
+        <p style="margin-top:10px" class="muted">Prefer manual model download? See advanced steps below.</p>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0">Manual model setup (optional)</h2>
+        <div class="code">
+          <button class="copy-btn" onclick="copyCode('block-manual')">Copy</button>
+<pre id="block-manual"><code># Create folders
+mkdir -p models vosk
+
+# Parakeet speech model (~1.5GB)
+# Place at: models/mlx-community/parakeet-tdt-0.6b-v2/
+
+# LLM for proofreading (choose one)
+# • models/mlx-community/Qwen3-14B-4bit-AWQ  (~8GB)
+# • models/mlx-community/Qwen3-8B-4bit       (~4GB)
+
+# Wake‑word (Vosk, ~100MB)
+# Download from: https://alphacephei.com/vosk/models
+# Extract under: vosk/vosk-model-small-en-us-0.15/
+</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="requirements" style="margin-top:24px" class="two-col">
+      <div class="card">
+        <h2 style="margin-top:0">System requirements</h2>
+        <ul>
+          <li><strong>OS:</strong> macOS (primary), Windows, or Linux</li>
+          <li><strong>CPU:</strong> Modern 4‑core or better. Apple Silicon M1/M2+ or Intel/AMD ≥2.5&nbsp;GHz recommended.</li>
+          <li><strong>Memory (RAM):</strong> Minimum 8&nbsp;GB. <em>Recommended</em> 16&nbsp;GB for smooth proofreading models; 24–32&nbsp;GB if using larger 14B LLMs.</li>
+          <li><strong>Python:</strong> 3.8 or newer</li>
+          <li><strong>Node.js:</strong> 16 or newer</li>
+          <li><strong>Disk space:</strong> 5–15&nbsp;GB for models (recommend &ge;20&nbsp;GB free)</li>
+          <li><strong>Internet:</strong> Required on first run for auto‑downloaded models</li>
+          <li><strong>Microphone:</strong> Any input supported by your OS</li>
+        </ul>
+        <p class="muted" style="margin-top:8px">Notes: the default Parakeet speech model is ~1.5&nbsp;GB and runs well on 8–16&nbsp;GB RAM. For optional proofreading LLMs, 8B‑class 4‑bit models are comfortable on 16&nbsp;GB; 14B‑class 4‑bit may require 24&nbsp;GB+.</p>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0">Hotkeys & wake‑words</h2>
+        <ul>
+          <li><kbd>⌘⇧A</kbd> — Toggle active</li>
+          <li><kbd>⌘⇧D</kbd> — Start dictation</li>
+          <li><kbd>⌘⇧S</kbd> — Stop dictation</li>
+          <li><kbd>⌘⇧P</kbd> — Proofread selection</li>
+          <li>Say “<em>note</em>” / “<em>dictate</em>” — start dictation</li>
+          <li>Say “<em>proof</em>” — start proofreading</li>
+        </ul>
+        <p class="muted" style="margin-top:8px">Customize hotkeys and wake‑words in <em>Settings → Shortcuts</em>.</p>
+      </div>
+    </section>
+
+    <section id="features" style="margin-top:24px" class="card">
+      <h2 style="margin-top:0">Features</h2>
+      <div class="grid features" style="margin-top:6px">
+        <div>
+          <h3>Custom vocabulary</h3>
+          <p>Add specialized medical/legal/technical terms; map variants to your canonical spelling. OpenScribe learns and autocorrects as you go.</p>
+        </div>
+        <div>
+          <h3>Professional UI</h3>
+          <p>Clean Electron desktop app with a distraction‑free mini mode for heads‑down dictation.</p>
+        </div>
+        <div>
+          <h3>Local first</h3>
+          <p>Transcribe on‑device; no audio leaves your machine unless you explicitly opt‑in to cloud models.</p>
+        </div>
+        <div>
+          <h3>Extensible</h3>
+          <p>Clear source layout, tests, and scripts for packaging and distribution.</p>
+        </div>
+      </div>
+    </section>
+
+    <section style="margin-top:24px" class="two-col">
+      <div class="card">
+        <h2 style="margin-top:0">Troubleshooting</h2>
+        <ul>
+          <li><strong>Models won’t download:</strong> Check internet connection & free disk (&ge;20&nbsp;GB), then relaunch with admin privileges.</li>
+          <li><strong>Vosk not found:</strong> Ensure the extracted folder lives under <code>vosk/</code> (e.g., <code>vosk/vosk-model-small-en-us-0.15/</code>).</li>
+          <li><strong>Crashes on start:</strong> Verify Python & Node versions; run <code>pip install -r requirements.txt</code> and <code>npm install</code> again.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0">For developers</h2>
+        <div class="code">
+<pre><code># Run tests
+pytest
+
+# Build (dev)
+npm run build:python
+npm run build:electron
+
+# Build (dist)
+npm run dist</code></pre>
+        </div>
+        <p class="muted" style="margin-top:8px">See <em>CONTRIBUTING.md</em> for guidelines.</p>
+      </div>
+    </section>
+
+    <section style="margin-top:24px" class="card">
+      <h2 style="margin-top:0">Privacy</h2>
+      <p>OpenScribe processes audio locally by default. No recordings are sent to external servers unless you explicitly enable cloud model integrations.</p>
+    </section>
+  </main>
+
+  <footer class="wrapper footer">
+    <div class="pill">© <span id="year"></span> OpenScribe · MIT License</div>
+    <div class="pill">Built with Python, Electron & modern AI</div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>
