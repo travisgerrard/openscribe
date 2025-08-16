@@ -249,26 +249,13 @@ class TranscriptionHandler:
                 # Decide if this is fatal or if we can proceed without saving temp files
                 raise RuntimeError(f"Failed to create temp audio folder: {e}") from e
 
-        # Only prepare local model copy for Whisper models using MLX backend
+        # For Whisper models using MLX backend, let mlx_whisper handle downloads from repo id
         if self.model_type == "whisper" and self._whisper_backend == "mlx" and not self._light_mode:
+            self.local_model_path_prepared = self.selected_asr_model  # pass repo id directly
             self._log_status(
-                f"Preparing local copy of Whisper model: {self.selected_asr_model}", "grey"
+                f"Using MLX repo id for Whisper: {self.local_model_path_prepared} (mlx_whisper will download if needed)",
+                "grey",
             )
-            try:
-                self.local_model_path_prepared = self._prepare_local_model_copy(
-                    self.selected_asr_model
-                )
-                self._log_status(
-                    f"Local Whisper model prepared at: {self.local_model_path_prepared}",
-                    "grey",
-                )
-            except Exception as e:
-                self._log_status(f"Failed to prepare local Whisper model: {e}", "red")
-                log_text(
-                    "TRANSCRIPTION_HANDLER_ERROR",
-                    f"Failed to prepare local Whisper model: {e}",
-                )
-                raise
         elif not self._light_mode and self.model_type == "parakeet":
             # For Parakeet models, we use the model ID directly
             self.local_model_path_prepared = self.selected_asr_model
@@ -576,6 +563,7 @@ class TranscriptionHandler:
                     else:
                         # Ensure a valid model path or repo id is available
                         model_path_or_repo = self.local_model_path_prepared or self.selected_asr_model
+                        # Do not fallback to Transformers for MLX repos to avoid preprocessor_config.json requirement
                         fallback_attempted = False
                         while True:
                             try:
@@ -598,39 +586,12 @@ class TranscriptionHandler:
                                 raw_text = result.get("text", "").strip()
                                 break
                             except Exception as whisper_error:
-                                # Fallback once to a known-good ASR if third-party whisper repo is incompatible
-                                if fallback_attempted:
-                                    raise
-                                fallback_attempted = True
-                                # Prefer fallback to a known-good MLX Whisper base; if still not possible, try Transformers
+                                # Surface the mlx_whisper error directly and stop (no Transformers fallback for MLX repos)
                                 self._log_status(
-                                    f"Whisper model '{self.selected_asr_model}' incompatible ({whisper_error}). Applying fallback...",
-                                    "orange",
+                                    f"MLX Whisper error for '{self.selected_asr_model}': {whisper_error}",
+                                    "red",
                                 )
-                                # Attempt MLX base large-v3
-                                model_path_or_repo = "mlx-community/whisper-large-v3-turbo"
-                                try:
-                                    result = mlx_whisper.transcribe(
-                                        filename,
-                                        language="en",
-                                        fp16=False,
-                                        prompt=prompt,
-                                        path_or_hf_repo=model_path_or_repo,
-                                    )
-                                    raw_text = result.get("text", "").strip()
-                                    break
-                                except Exception:
-                                    # As last resort, try Transformers pipeline for the originally selected HF model
-                                    if TRANSFORMERS_AVAILABLE and TORCH_AVAILABLE:
-                                        self._log_status("Trying Transformers Whisper fallback pipeline...", "orange")
-                                        try:
-                                            raw_text = self._transcribe_with_transformers_whisper(filename, self.selected_asr_model, prompt)
-                                            break
-                                        except Exception as tf_err:
-                                            self._log_status(f"Transformers fallback failed: {tf_err}", "red")
-                                            raise
-                                    else:
-                                        raise
+                                raise
 
             end_time = time.time()
             transcription_time = end_time - start_time
