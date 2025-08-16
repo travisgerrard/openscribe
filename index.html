@@ -12,7 +12,7 @@
     :root{
       --bg: #0b1020;          /* deep navy */
       --panel: #0f152a;       /* card bg */
-      --muted: #7b8aa5;       /* muted text */
+      --muted: hsl(219, 19%, 56%);       /* muted text */
       --text: #e6ecff;        /* main text */
       --brand: #7c9cff;       /* brand primary */
       --brand-2: #9e77ff;     /* brand accent */
@@ -144,23 +144,36 @@
     <section id="install" class="two-col">
       <div class="card">
         <h2 style="margin-top:0">Quick install</h2>
-        <p class="muted">Clone the repo, install dependencies, then run. First launch fetches models automatically (can take 10–30 minutes depending on connection).</p>
+        <div style="background: #ff6b6b; border: 1px solid #ff4757; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+          <h3 style="margin: 0 0 8px 0; color: #fff;">⚠️ CRITICAL REQUIREMENT</h3>
+          <p style="margin: 0; color: #fff; font-weight: 600;">Python 3.11+ and virtual environment are REQUIRED for MLX compatibility</p>
+        </div>
+        <p class="muted">Clone the repo, create virtual environment, install dependencies, then run. First launch fetches models automatically (can take 10–30 minutes depending on connection).</p>
         <div class="code" aria-label="Installation code block">
           <button class="copy-btn" onclick="copyCode('block-install')" title="Copy commands">Copy</button>
 <pre id="block-install"><code># 1) Clone
 git clone https://github.com/travisgerrard/openscribe.git
 cd openscribe
 
-# 2) Python deps
+# 2) Check Python version (MUST be 3.11+)
+python3 --version
+
+# 3) Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# 4) Upgrade pip and install Python deps
+pip install --upgrade pip
 pip install -r requirements.txt
 
-# 3) Node deps
+# 5) Node deps
 npm install
 
-# 4) Start app (auto-downloads models on first run)
+# 6) Start app (auto-downloads models on first run)
 npm start</code></pre>
         </div>
-        <p style="margin-top:10px" class="muted">Prefer manual model download? See advanced steps below.</p>
+        <p style="margin-top:10px" class="muted">⚠️ <strong>Important:</strong> Always activate your virtual environment before running the app: <code>source venv/bin/activate</code></p>
+        <p style="margin-top:10px" class="muted">Need help? See <a href="#troubleshooting">Troubleshooting</a> section below.</p>
       </div>
       <div class="card">
         <h2 style="margin-top:0">Manual model setup (optional)</h2>
@@ -191,7 +204,7 @@ mkdir -p models vosk
           <li><strong>OS:</strong> macOS (primary), Windows, or Linux</li>
           <li><strong>CPU:</strong> Modern 4‑core or better. Apple Silicon M1/M2+ or Intel/AMD ≥2.5&nbsp;GHz recommended.</li>
           <li><strong>Memory (RAM):</strong> Minimum 8&nbsp;GB. <em>Recommended</em> 16&nbsp;GB for smooth proofreading models; 24–32&nbsp;GB if using larger 14B LLMs.</li>
-          <li><strong>Python:</strong> 3.8 or newer</li>
+          <li><strong>Python:</strong> <span style="color: #ff6b6b; font-weight: 700;">3.11 or newer (required for MLX compatibility)</span></li>
           <li><strong>Node.js:</strong> 16 or newer</li>
           <li><strong>Disk space:</strong> 5–15&nbsp;GB for models (recommend &ge;20&nbsp;GB free)</li>
           <li><strong>Internet:</strong> Required on first run for auto‑downloaded models</li>
@@ -200,16 +213,54 @@ mkdir -p models vosk
         <p class="muted" style="margin-top:8px">Notes: the default Parakeet speech model is ~1.5&nbsp;GB and runs well on 8–16&nbsp;GB RAM. For optional proofreading LLMs, 8B‑class 4‑bit models are comfortable on 16&nbsp;GB; 14B‑class 4‑bit may require 24&nbsp;GB+.</p>
       </div>
       <div class="card">
+        <h2 style="margin-top:0">🔧 Virtual Environment Setup</h2>
+        <p class="muted">Virtual environments are required to manage Python dependencies properly.</p>
+        <div class="code">
+          <button class="copy-btn" onclick="copyCode('block-venv')">Copy</button>
+<pre id="block-venv"><code># Create virtual environment
+python3 -m venv venv
+
+# Activate (run this EVERY time you open terminal)
+source venv/bin/activate  # macOS/Linux
+# OR
+venv\Scripts\activate     # Windows
+
+# Verify activation (should show venv path)
+which python  # macOS/Linux
+# OR
+where python  # Windows
+
+# Install/upgrade dependencies
+pip install --upgrade pip
+pip install -r requirements.txt</code></pre>
+        </div>
+        <p class="muted" style="margin-top:8px"><strong>Remember:</strong> You must activate the virtual environment every time you open a new terminal window.</p>
+      </div>
+    </section>
+
+    <section style="margin-top:24px" class="two-col">
+      <div class="card">
         <h2 style="margin-top:0">Hotkeys & wake‑words</h2>
         <ul>
           <li><kbd>⌘⇧A</kbd> — Toggle active</li>
           <li><kbd>⌘⇧D</kbd> — Start dictation</li>
           <li><kbd>⌘⇧S</kbd> — Stop dictation</li>
           <li><kbd>⌘⇧P</kbd> — Proofread selection</li>
-          <li>Say “<em>note</em>” / “<em>dictate</em>” — start dictation</li>
-          <li>Say “<em>proof</em>” — start proofreading</li>
+          <li>Say "<em>note</em>" / "<em>dictate</em>" — start dictation</li>
+          <li>Say "<em>proof</em>" — start proofreading</li>
         </ul>
         <p class="muted" style="margin-top:8px">Customize hotkeys and wake‑words in <em>Settings → Shortcuts</em>.</p>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0">Models & Downloads</h2>
+        <ul>
+          <li><strong>Auto-download:</strong> Models download automatically on first run to <code>models/</code> directory</li>
+          <li><strong>Download time:</strong> 10-30 minutes depending on internet speed</li>
+          <li><strong>Storage:</strong> Ensure ≥20GB free space for all models</li>
+          <li><strong>Cache location:</strong> Models stored in <code>models/mlx-community/</code> and <code>models/nightmedia/</code></li>
+          <li><strong>Manual override:</strong> See "Manual model setup" section above</li>
+        </ul>
+        <p class="muted" style="margin-top:8px"><strong>Note:</strong> If you see "model not found" errors, the app will automatically re-download missing models.</p>
       </div>
     </section>
 
@@ -235,15 +286,54 @@ mkdir -p models vosk
       </div>
     </section>
 
-    <section style="margin-top:24px" class="two-col">
+    <section id="troubleshooting" style="margin-top:24px" class="two-col">
       <div class="card">
-        <h2 style="margin-top:0">Troubleshooting</h2>
+        <h2 style="margin-top:0">Common Issues & Solutions</h2>
+        <div style="background: #ff6b6b; border: 1px solid #ff4757; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+          <h4 style="margin: 0 0 8px 0; color: #fff;">🚨 Issue 1: Mock Transcription Instead of Real Transcription</h4>
+          <p style="margin: 0; color: #fff; font-size: 14px;">If you see "[MOCK PARAKEET TRANSCRIPTION]" or similar, the ASR model failed to load.</p>
+        </div>
         <ul>
-          <li><strong>Models won’t download:</strong> Check internet connection & free disk (&ge;20&nbsp;GB), then relaunch with admin privileges.</li>
-          <li><strong>Vosk not found:</strong> Ensure the extracted folder lives under <code>vosk/</code> (e.g., <code>vosk/vosk-model-small-en-us-0.15/</code>).</li>
-          <li><strong>Crashes on start:</strong> Verify Python & Node versions; run <code>pip install -r requirements.txt</code> and <code>npm install</code> again.</li>
+          <li><strong>Solution A:</strong> Switch to Whisper model in Settings → ASR Model</li>
+          <li><strong>Solution B:</strong> Ensure parakeet-mlx is installed: <code>pip install parakeet-mlx</code></li>
+          <li><strong>Solution C:</strong> Delete corrupted models and let app re-download</li>
+        </ul>
+        
+        <div style="background: #ffa726; border: 1px solid #ff9800; border-radius: 8px; padding: 12px; margin: 16px 0;">
+          <h4 style="margin: 0 0 8px 0; color: #fff;">⚠️ Issue 2: Python Version Too Old</h4>
+          <p style="margin: 0; color: #fff; font-size: 14px;">Python 3.6-3.10 will fail with MLX compatibility errors.</p>
+        </div>
+        <ul>
+          <li><strong>macOS:</strong> <code>brew install python@3.11</code> or download from python.org</li>
+          <li><strong>Windows:</strong> Download Python 3.11+ from python.org</li>
+          <li><strong>Linux:</strong> <code>sudo apt install python3.11</code> or use pyenv</li>
+        </ul>
+        
+        <div style="background: #66bb6a; border: 1px solid #4caf50; border-radius: 8px; padding: 12px; margin: 16px 0;">
+          <h4 style="margin: 0 0 8px 0; color: #fff;">✅ Issue 3: Virtual Environment Not Used</h4>
+          <p style="margin: 0; color: #fff; font-size: 14px;">Always activate your virtual environment before running the app.</p>
+        </div>
+        <ul>
+          <li><strong>Check:</strong> Terminal prompt should show <code>(venv)</code></li>
+          <li><strong>Activate:</strong> <code>source venv/bin/activate</code></li>
+          <li><strong>Verify:</strong> <code>which python</code> should show venv path</li>
         </ul>
       </div>
+      <div class="card">
+        <h2 style="margin-top:0">Quick Fix Checklist</h2>
+        <ol>
+          <li><strong>Python Version:</strong> <code>python3 --version</code> (must be 3.11+)</li>
+          <li><strong>Virtual Environment:</strong> <code>source venv/bin/activate</code></li>
+          <li><strong>Dependencies:</strong> <code>pip install -r requirements.txt</code></li>
+          <li><strong>Node Modules:</strong> <code>npm install</code></li>
+          <li><strong>Model Directory:</strong> Check if <code>models/</code> exists</li>
+          <li><strong>Permissions:</strong> Ensure write access to project directory</li>
+        </ol>
+        <p class="muted" style="margin-top:8px"><strong>Still stuck?</strong> Check the <a href="https://github.com/travisgerrard/openscribe/blob/main/INSTALLATION_TROUBLESHOOTING.md" target="_blank">detailed troubleshooting guide</a> on GitHub.</p>
+      </div>
+    </section>
+
+    <section style="margin-top:24px" class="two-col">
       <div class="card">
         <h2 style="margin-top:0">For developers</h2>
         <div class="code">
@@ -259,11 +349,10 @@ npm run dist</code></pre>
         </div>
         <p class="muted" style="margin-top:8px">See <em>CONTRIBUTING.md</em> for guidelines.</p>
       </div>
-    </section>
-
-    <section style="margin-top:24px" class="card">
-      <h2 style="margin-top:0">Privacy</h2>
-      <p>OpenScribe processes audio locally. No recordings are sent to external servers, and this build includes no cloud model integrations.</p>
+      <div class="card">
+        <h2 style="margin-top:0">Privacy</h2>
+        <p>OpenScribe processes audio locally. No recordings are sent to external servers, and this build includes no cloud model integrations.</p>
+      </div>
     </section>
   </main>
 
