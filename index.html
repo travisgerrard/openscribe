@@ -206,6 +206,7 @@ mkdir -p models vosk
           <li><strong>Memory (RAM):</strong> Minimum 8&nbsp;GB. <em>Recommended</em> 16&nbsp;GB for smooth proofreading models; 24–32&nbsp;GB if using larger 14B LLMs.</li>
           <li><strong>Python:</strong> <span style="color: #ff6b6b; font-weight: 700;">3.11 or newer (required for MLX compatibility)</span></li>
           <li><strong>Node.js:</strong> 16 or newer</li>
+          <li><strong>ffmpeg:</strong> Required for audio processing</li>
           <li><strong>Disk space:</strong> 5–15&nbsp;GB for models (recommend &ge;20&nbsp;GB free)</li>
           <li><strong>Internet:</strong> Required on first run for auto‑downloaded models</li>
           <li><strong>Microphone:</strong> Any input supported by your OS</li>
@@ -318,12 +319,24 @@ pip install -r requirements.txt</code></pre>
           <li><strong>Activate:</strong> <code>source venv/bin/activate</code></li>
           <li><strong>Verify:</strong> <code>which python</code> should show venv path</li>
         </ul>
+        
+        <div style="background: #9c27b0; border: 1px solid #673ab7; border-radius: 8px; padding: 12px; margin: 16px 0;">
+          <h4 style="margin: 0 0 8px 0; color: #fff;">🔧 Issue 4: ffmpeg Not Found</h4>
+          <p style="margin: 0; color: #fff; font-size: 14px;">ffmpeg is required for audio processing but not included in Python dependencies.</p>
+        </div>
+        <ul>
+          <li><strong>macOS:</strong> <code>brew install ffmpeg</code> (requires Homebrew)</li>
+          <li><strong>Windows:</strong> Download from <a href="https://ffmpeg.org/download.html" target="_blank">ffmpeg.org</a> or use <code>winget install ffmpeg</code></li>
+          <li><strong>Linux:</strong> <code>sudo apt install ffmpeg</code> (Ubuntu/Debian) or <code>sudo yum install ffmpeg</code> (CentOS/RHEL)</li>
+          <li><strong>Verify:</strong> <code>ffmpeg -version</code> should show version info</li>
+        </ul>
       </div>
       <div class="card">
         <h2 style="margin-top:0">Quick Fix Checklist</h2>
         <ol>
           <li><strong>Python Version:</strong> <code>python3 --version</code> (must be 3.11+)</li>
           <li><strong>Virtual Environment:</strong> <code>source venv/bin/activate</code></li>
+          <li><strong>ffmpeg:</strong> <code>ffmpeg -version</code> (required for audio processing)</li>
           <li><strong>Dependencies:</strong> <code>pip install -r requirements.txt</code></li>
           <li><strong>Node Modules:</strong> <code>npm install</code></li>
           <li><strong>Model Directory:</strong> Check if <code>models/</code> exists</li>
