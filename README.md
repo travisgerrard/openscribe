@@ -73,6 +73,8 @@ A professional-grade speech-to-text transcription application with AI-powered pr
    
    **Note**: Models are large files (5-15GB total). Ensure you have sufficient disk space and a stable internet connection.
 
+**⚠️ Troubleshooting**: If you encounter issues during installation or see "Mock Transcription" messages, see the [Installation Troubleshooting Guide](INSTALLATION_TROUBLESHOOTING.md) for solutions.
+
 ### Running the Application
 
 ```bash

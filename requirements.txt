@@ -12,6 +12,7 @@ pynput>=1.7.6  # For hotkey functionality
 
 # ASR (Speech-to-Text) dependencies
 mlx-whisper>=0.4.0
+parakeet-mlx>=0.1.0  # For Parakeet transcription models
 # Note: parakeet-mlx requires Python 3.10+ and may not be available on all systems
 # If installation fails, the app will fall back to Whisper models
 

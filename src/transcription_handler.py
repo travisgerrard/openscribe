@@ -340,6 +340,10 @@ class TranscriptionHandler:
         """
         model_id_lower = model_id.lower()
         if "parakeet" in model_id_lower:
+            # Check if parakeet_mlx is available, if not, fall back to whisper
+            if not PARAKEET_MLX_AVAILABLE:
+                self._log_status(f"Parakeet model {model_id} selected but parakeet_mlx not available. Falling back to Whisper.", "orange")
+                return "whisper"
             return "parakeet"
         elif "whisper" in model_id_lower:
             return "whisper"
@@ -606,8 +610,15 @@ class TranscriptionHandler:
                 self._log_status(f"Using Parakeet-MLX for transcription with model: {self.selected_asr_model}", "blue")
                 
                 if not PARAKEET_MLX_AVAILABLE or self.parakeet_model is None:
-                    raw_text = "[MOCK PARAKEET TRANSCRIPTION] Test transcription result"
-                    self._log_status("Parakeet transcription mocked - parakeet_mlx not available or model not loaded", "orange")
+                    # Provide helpful error message instead of mock transcription
+                    error_msg = "Parakeet transcription failed"
+                    if not PARAKEET_MLX_AVAILABLE:
+                        error_msg += " - parakeet_mlx library not installed. Please run: pip install parakeet-mlx"
+                    else:
+                        error_msg += " - model failed to load"
+                    
+                    self._log_status(error_msg, "red")
+                    raise RuntimeError(error_msg)
                 else:
                     # Use parakeet_mlx for transcription
                     result = self.parakeet_model.transcribe(filename)
