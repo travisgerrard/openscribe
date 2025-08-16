@@ -83,11 +83,54 @@ class TextProcessor:
         
         # Apply filler word removal
         cleaned = self.remove_filler_words(text)
+
+        # Trim pathological trailing repetition (e.g., single word or short n-gram looped)
+        cleaned = self._trim_trailing_repetition(cleaned)
         
         # Additional cleaning operations can be added here
         # e.g., punctuation correction, capitalization, etc.
         
         return cleaned
+
+    def _trim_trailing_repetition(self, text: str) -> str:
+        """
+        Remove obvious looping at the end of the text where a word or short
+        n-gram repeats many times consecutively (common ASR hallucination tail).
+
+        Strategy:
+        - Work from the end; detect the last word or last 2-word phrase
+        - If it repeats >= threshold (e.g., 8) times, keep the first instance
+          and drop the excess tail.
+        - Conservative: only trims the very end; leaves clinical content intact.
+        """
+        if not text:
+            return text
+
+        s = text.rstrip()
+        if not s:
+            return text
+
+        # Normalize spaces
+        s = re.sub(r"\s+", " ", s)
+
+        # Try 1-word repetition first
+        m1 = re.search(r"(?:\b(\w{1,30})\b(?:\s+\1\b){7,})\s*$", s, re.IGNORECASE)
+        if m1:
+            start = m1.start(1)
+            # Keep the first occurrence of the repeated word
+            return s[:start + len(m1.group(1))].rstrip()
+
+        # Try 2-word repetition (e.g., "low LDL low LDL ...")
+        m2 = re.search(
+            r"(?:\b(\w{1,30}\s+\w{1,30})\b(?:\s+\1\b){5,})\s*$",
+            s,
+            re.IGNORECASE,
+        )
+        if m2:
+            start = m2.start(1)
+            return s[:start + len(m2.group(1))].rstrip()
+
+        return s
     
     def set_filler_words(self, filler_words: List[str]) -> None:
         """

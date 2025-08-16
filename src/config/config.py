@@ -9,7 +9,12 @@ try:
 except ImportError:
     # pynput not available (CI environment)
     PYNPUT_AVAILABLE = False
-    print("[WARN] pynput not available in config.py - using mock classes")
+    try:
+        from . import config as _cfg  # circular-safe in runtime; only for attribute access
+        if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+            print("[WARN] pynput not available in config.py - using mock classes")
+    except Exception:
+        print("[WARN] pynput not available in config.py - using mock classes")
     # Create minimal mock classes for configuration
     class MockKey:
         cmd = "cmd"
@@ -89,10 +94,11 @@ LLM_REPETITION_PENALTY = (
 LLM_TOP_P = 0.95  # Nucleus sampling: considers the smallest set of tokens whose cumulative probability exceeds top_p
 LLM_MAX_TOKENS_TO_GENERATE = 4096  # Maximum number of tokens the LLM should generate (increased for DeepSeek R1 reasoning models)
 AVAILABLE_ASR_MODELS = {
-    "Whisper (large-v3-turbo)": "mlx-community/whisper-large-v3-turbo",
+    # Curated stable set only
     "Parakeet-TDT-0.6B-v2": "mlx-community/parakeet-tdt-0.6b-v2",
+    "Whisper (large-v3-turbo)": "mlx-community/whisper-large-v3-turbo",
 }
-DEFAULT_ASR_MODEL = "mlx-community/parakeet-tdt-0.6b-v2"
+DEFAULT_ASR_MODEL = "mlx-community/whisper-large-v3-turbo"
 
 # WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo" # Or choose another compatible model
 # WHISPER_MODEL = "mlx-community/parakeet-tdt-0.6b-v2" # Or choose another compatible model
@@ -101,13 +107,12 @@ AVAILABLE_LLMS = {
     "Qwen3-8B-4bit": "mlx-community/Qwen3-8B-4bit",
     "Qwen3-14B-4bit-AWQ": "mlx-community/Qwen3-14B-4bit-AWQ",
     "DeepSeek-R1-DWQ-8B-4bit": "mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit-DWQ",
-    "Qwen3-30B-Thinking-4bit": "mlx-community/Qwen3-30B-A3B-Thinking-2507-4bit",  # 30B model with thinking capabilities
-    # TODO: GPT-OSS-20B Integration
-    # "GPT-OSS-20B-Q8": "mlx-community/gpt-oss-20b-mlx-q8",  # 20B parameters, 8-bit quantization
-    # Status: Model repository contains only documentation files, not actual model weights
+    # GPT-OSS-20B Integration
+    "GPT-OSS-20B-Q4-HI": "nightmedia/gpt-oss-20b-q4-hi-mlx",  # 20B parameters, 4-bit quantization, enhanced reasoning
+    # Status: ✅ Model available and tested
     # Expected benefits: Enhanced reasoning, chain-of-thought, configurable reasoning levels
-    # Memory requirements: ~40-50GB download, 16GB+ RAM recommended
-    # Enable when model files become available in the repository
+    # Memory requirements: ~13GB RAM usage, 20.9B parameters
+    # Features: Analysis channel for reasoning visibility, professional text enhancement
     # Add other models as needed
 }
 
@@ -176,3 +181,42 @@ DEFAULT_THEME = "arc"  # Example theme, requires ttkthemes
 TOKENIZERS_PARALLELISM = "false"  # Environment variable setting
 LOG_TEXT_DETAIL_LEVEL = 1  # 0 = basic, 1 = detailed, etc. (currently informational)
 SEND_TO_CITRIX_ENABLED = True  # Set to False to only copy to clipboard without pasting
+
+# When copying to clipboard for legacy apps, replace non-breaking hyphens, fancy quotes,
+# and other unicode punctuation with ASCII-safe equivalents.
+SANITIZE_CLIPBOARD_FOR_LEGACY = True
+
+# --- Terminal Output Controls ---
+# Enable to drastically reduce stdout noise while keeping full file logs via utils.log_text
+MINIMAL_TERMINAL_OUTPUT = True
+# Labels that are still allowed to be printed by utils.log_text when MINIMAL_TERMINAL_OUTPUT is True
+TERMINAL_LOG_WHITELIST = {
+    "STARTUP",
+    "INIT",
+    "INIT_ERROR",
+    "ERROR",
+    "CRITICAL_ERROR",
+    "SHUTDOWN",
+    "LLM_ERROR",
+    "CONFIG_ERROR",
+    "PIPE_ERROR",
+    "STATE_CHANGE",
+}
+
+# --- Environment overrides ---
+# CT_VERBOSE=1 disables minimal terminal mode
+_ct_verbose = os.getenv("CT_VERBOSE")
+if _ct_verbose is not None:
+    try:
+        MINIMAL_TERMINAL_OUTPUT = not (_ct_verbose.strip() in ["1", "true", "True", "yes", "on"])
+    except Exception:
+        pass
+
+# CT_LOG_WHITELIST="A,B,C" adds labels to terminal whitelist
+_ct_log_whitelist = os.getenv("CT_LOG_WHITELIST")
+if _ct_log_whitelist:
+    try:
+        for lbl in [s.strip() for s in _ct_log_whitelist.split(",") if s.strip()]:
+            TERMINAL_LOG_WHITELIST.add(lbl)
+    except Exception:
+        pass

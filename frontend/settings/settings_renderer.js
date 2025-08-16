@@ -80,10 +80,12 @@ function populateModelDropdowns(models, savedSettings) {
     if (Array.isArray(models) && asrModelSelect) {
         asrModelSelect.innerHTML = '';
         // Only show models that are ASR-capable (filter by type or id)
-        // For now, hardcode the two options for clarity
+        // For now, hardcode curated ASR options for clarity
         const asrModels = [
-            { id: 'mlx-community/whisper-large-v3-turbo', name: 'Whisper (large-v3-turbo)' },
-            { id: 'mlx-community/parakeet-tdt-0.6b-v2', name: 'Parakeet-TDT-0.6B-v2' }
+            // Curated stable choices only
+            { id: 'mlx-community/parakeet-tdt-0.6b-v2', name: 'Parakeet-TDT-0.6B-v2' },
+            { id: 'mlx-community/whisper-large-v3-turbo', name: 'Whisper (large-v3-turbo)' }
+            // Removed: Distil-Large v3 (init hangs) and Medical fine-tune (issues reported)
         ];
         asrModels.forEach(model => {
             const option = document.createElement('option');

@@ -5,6 +5,7 @@ import traceback
 import inspect
 import os
 import json
+import re
 from typing import Optional, Callable
 
 # Make mlx_lm imports conditional for CI compatibility
@@ -49,6 +50,7 @@ from src.utils.utils import log_text
 from src.memory_monitor import memory_monitor
 from src.config.settings_manager import SettingsManager
 from src.professional_text_formatter import ProfessionalTextFormatter
+from src.llm.gpt_oss_parser import GPTOssParser, GPTOssStreamingParser, parse_gpt_oss_stream, create_gpt_oss_chat_prompt
 
 
 class LLMHandler:
@@ -77,6 +79,10 @@ class LLMHandler:
         # Initialize professional text formatter
         self._professional_formatter = ProfessionalTextFormatter()
         
+        # Initialize GPT-OSS parsers
+        self._gpt_oss_parser = GPTOssParser()
+        self._gpt_oss_streaming_parser = GPTOssStreamingParser()
+        
         # Log initialization and check for dependencies
         if not MLX_LM_AVAILABLE:
             log_text("LLM_HANDLER_INIT", "LLM handler initialized in CI mode - mlx_lm not available")
@@ -85,6 +91,19 @@ class LLMHandler:
                 "LLM_HANDLER_INIT",
                 f"Initialized. Proofing prompt: '{self._proofing_prompt[:50]}...', Letter prompt: '{self._letter_prompt[:50]}...'",
             )
+
+    def _strip_think_tags(self, text: str) -> str:
+        """Remove any <think>...</think> or Chinese variants from text (robust, multiline)."""
+        if not text:
+            return text
+        # Remove English think blocks (case-insensitive)
+        cleaned = re.sub(r"<think>\s*[\s\S]*?\s*</think>", "", text, flags=re.IGNORECASE)
+        # Remove Chinese think blocks
+        cleaned = re.sub(r"<思考过程>\s*[\s\S]*?\s*</思考过程>", "", cleaned)
+        # Also strip any stray opening/closing tags that might have leaked
+        cleaned = re.sub(r"</?think>", "", cleaned, flags=re.IGNORECASE)
+        cleaned = cleaned.replace("<思考过程>", "").replace("</思考过程>", "")
+        return cleaned.strip()
 
     def _log_status(self, message, color="black"):
         if self.on_status_update_callback:
@@ -103,6 +122,21 @@ class LLMHandler:
         load_start_time = time.time()
         success = False
         try:
+            # Respect lightweight mode for tests/low-memory environments
+            if os.getenv("CT_LIGHT_MODE", "0") == "1":
+                self._log_status(
+                    f"CT_LIGHT_MODE enabled - skipping heavy LLM load for '{model_key}'",
+                    "orange",
+                )
+                with self._load_lock:
+                    # Create minimal mock handles so downstream logic proceeds
+                    self._model, self._tokenizer = (object(), object())
+                    self._current_model_name = model_key
+                success = True
+                if on_load_complete:
+                    on_load_complete(True)
+                return
+
             with self._load_lock:
                 if self._current_model_name == model_key and self._model is not None:
                     log_text(
@@ -203,6 +237,14 @@ class LLMHandler:
             return False
 
         model_path = config.AVAILABLE_LLMS[model_key]
+        # In light mode, short-circuit to the worker to set mock handles quickly
+        if os.getenv("CT_LIGHT_MODE", "0") == "1":
+            threading.Thread(
+                target=self._load_model_worker,
+                args=(model_key, model_path, on_load_complete),
+                daemon=True,
+            ).start()
+            return True
         with self._load_lock:
             if self._current_model_name == model_key and self._model is not None:
                 self._log_status(f"Model '{model_key}' is already loaded.", "blue")
@@ -288,6 +330,13 @@ class LLMHandler:
             else self._selected_letter_model_id
         )
         if not target_model_id:
+            self._log_status("No proofing/letter model selected. Open Settings → Models.", "red")
+            if self.on_processing_complete:
+                self.on_processing_complete(
+                    "Error: No model selected.", input_text, mode, 0.0
+                )
+            return
+        if not target_model_id:
             error_msg = f"No model selected for mode '{mode}'. Please check settings."
             self._log_status(error_msg, "red")
             if self.on_processing_complete:
@@ -307,6 +356,7 @@ class LLMHandler:
         if not target_model_key:
             error_msg = f"Selected model ID '{target_model_id}' for mode '{mode}' not found in config."
             self._log_status(error_msg, "red")
+            log_text("LLM_CONFIG_ERROR", error_msg)
             if self.on_processing_complete:
                 self.on_processing_complete(
                     f"Error: {error_msg}", input_text, mode, 0.0
@@ -381,24 +431,34 @@ class LLMHandler:
 
             output_format_instructions = ""
             if mode == "proofread":
-                output_format_instructions = (
-                    "Your response MUST be structured in two distinct parts:\n\n"
-                    "PART 1: YOUR THOUGHT PROCESS (MANDATORY)\n"
-                    "First, provide your detailed thought process for proofreading the 'Input Text'. "
-                    "This thought process MUST be enclosed entirely within <think> and </think> tags (use EXACTLY these English tags). "
-                    "For example: <think>The input text is '...'. I will check for spelling errors in '...' and clarity in the phrase '...'. I will also ensure it meets medical chart standards. My goal is to make it concise and accurate.</think>\n\n"
-                    "PART 2: CORRECTED TEXT (MANDATORY)\n"
-                    "Immediately after your thought process (i.e., after the closing </think> tag), provide ONLY the corrected version of the 'Input Text'.\n"
-                    "- The corrected text MUST be formatted as a bulleted list. Use standard bullet markers like '-'.\n"
-                    "- Each bullet point should represent a distinct corrected sentence or a significant, coherent segment of the corrected text.\n"
-                    "- DO NOT include any conversational filler, explanations, apologies, or introductory/closing phrases before, between, or after the bullet points in this part. Deliver ONLY the bulleted list of corrections.\n"
-                    "- Ensure there is NO text after the final bullet point.\n\n"
-                    "COMPLETE OUTPUT EXAMPLE (Follow this structure precisely):\n"
-                    "<think>\n"
-                    "The input 'Patient complaned of feever and chils for 3 day.' has spelling errors: 'complaned' should be 'complained', 'feever' should be 'fever', 'chils' should be 'chills'. The phrase 'for 3 day' should be 'for 3 days'. The sentence is for a medical chart, so it must be concise and medically accurate. I will correct these specific errors.\n"
-                    "</think>\n"
-                    "- Patient complained of fever and chills for 3 days.\n"
-                )
+                if 'gpt-oss' in target_model_key.lower():
+                    # Channel-specific instructions for GPT-OSS models. Do NOT mention <think> tags.
+                    output_format_instructions = (
+                        "For this task, use the analysis channel for brief reasoning and the final channel for the corrected text.\n"
+                        "- In the analysis channel: Keep reasoning to <= 2 short sentences (<= 50 words) and avoid repetition.\n"
+                        "- In the final channel: Provide ONLY the corrected text as a bulleted list using '-' markers.\n"
+                        "- Do not include any <think> tags or meta commentary anywhere.\n"
+                        "- Ensure there is NO text after the final bullet point.\n"
+                    )
+                else:
+                    output_format_instructions = (
+                        "Your response MUST be structured in two distinct parts:\n\n"
+                        "PART 1: YOUR THOUGHT PROCESS (MANDATORY)\n"
+                        "First, provide your detailed thought process for proofreading the 'Input Text'. "
+                        "This thought process MUST be enclosed entirely within <think> and </think> tags (use EXACTLY these English tags). "
+                        "For example: <think>The input text is '...'. I will check for spelling errors in '...' and clarity in the phrase '...'. I will also ensure it meets medical chart standards. My goal is to make it concise and accurate.</think>\n\n"
+                        "PART 2: CORRECTED TEXT (MANDATORY)\n"
+                        "Immediately after your thought process (i.e., after the closing </think> tag), provide ONLY the corrected version of the 'Input Text'.\n"
+                        "- The corrected text MUST be formatted as a bulleted list. Use standard bullet markers like '-'.\n"
+                        "- Each bullet point should represent a distinct corrected sentence or a significant, coherent segment of the corrected text.\n"
+                        "- DO NOT include any conversational filler, explanations, apologies, or introductory/closing phrases before, between, or after the bullet points in this part. Deliver ONLY the bulleted list of corrections.\n"
+                        "- Ensure there is NO text after the final bullet point.\n\n"
+                        "COMPLETE OUTPUT EXAMPLE (Follow this structure precisely):\n"
+                        "<think>\n"
+                        "The input 'Patient complaned of feever and chils for 3 day.' has spelling errors: 'complaned' should be 'complained', 'feever' should be 'fever', 'chils' should be 'chills'. The phrase 'for 3 day' should be 'for 3 days'. The sentence is for a medical chart, so it must be concise and medically accurate. I will correct these specific errors.\n"
+                        "</think>\n"
+                        "- Patient complained of fever and chills for 3 days.\n"
+                    )
             elif (
                 mode == "letter"
             ):  # Optional: Add specific instructions for letter mode if needed
@@ -422,7 +482,13 @@ class LLMHandler:
                 f"Using model: {current_model_name}, Mode: {mode}, Prompt starts: '{prompt_preview}...' Input length: {len(input_text)}",
             )
 
-            sampler = make_sampler(temp=config.LLM_TEMPERATURE, top_p=config.LLM_TOP_P)
+            # Adjust sampler parameters for GPT-OSS models to prevent loops
+            if 'gpt-oss' in target_model_key.lower():
+                # Use more conservative sampling for GPT-OSS models
+                sampler = make_sampler(temp=0.3, top_p=0.95)
+                log_text(f"{log_label}_GPT_OSS_SAMPLER", "Using conservative sampling for GPT-OSS model (temp=0.3, top_p=0.95)")
+            else:
+                sampler = make_sampler(temp=config.LLM_TEMPERATURE, top_p=config.LLM_TOP_P)
 
             if self.on_proofing_activity_callback:
                 self.on_proofing_activity_callback(True)
@@ -438,213 +504,286 @@ class LLMHandler:
                     "black",
                 )
 
-            # --- NEW: build a ChatML prompt if the tokenizer supports it -------------
-            use_chat_template = hasattr(current_tokenizer, "apply_chat_template")
-            if use_chat_template:
-                # Qwen's template flips the "reasoning" switch when enable_thinking=True
+            # --- Build ChatML prompt for GPT-OSS models or fallback for others -------------
+            if 'gpt-oss' in target_model_key.lower():
+                # Use GPT-OSS specific chat template
+                system_content = (
+                    "You are a meticulous medical proof-reader. Use the analysis channel for brief reasoning (<= 2 short sentences, <= 50 words). "
+                    "Use the final channel for the corrected text only as a bulleted list. Do not include <think> tags anywhere."
+                )
+                prompt_for_llm = create_gpt_oss_chat_prompt(current_tokenizer, system_content, full_prompt)
+                log_text(f"{log_label}_GPT_OSS_PROMPT", "Using GPT-OSS chat template")
+            elif hasattr(current_tokenizer, "apply_chat_template"):
+                # Standard chat template for other models
+                system_content = "You are a meticulous medical proof-reader."
                 messages = [
-                    {
-                        "role": "system",
-                        # Keep it short; your detailed rules live in full_prompt ↓
-                        "content": "You are a meticulous medical proof-reader.",
-                    },
-                    {
-                        "role": "user",
-                        "content": full_prompt,  # ← all your instructions + input text
-                    },
+                    {"role": "system", "content": system_content},
+                    {"role": "user", "content": full_prompt}
                 ]
                 prompt_for_llm = current_tokenizer.apply_chat_template(
                     messages,
-                    add_generation_prompt=True,  # inserts assistant stub
-                    enable_thinking=True,  # crucial: restores <think> … </think>
-                    tokenize=False,  # we want a raw string
+                    add_generation_prompt=True,
+                    tokenize=False
                 )
             else:
                 prompt_for_llm = full_prompt
             # -------------------------------------------------------------------------
 
-            stream = stream_generate(
-                current_model,
-                current_tokenizer,
-                prompt=prompt_for_llm,
-                **self.generation_params,
-                sampler=sampler,
-            )
-
-            thinking_content_buffer = ""
-            response_content_buffer = ""
-            in_thinking_block = False
-            # Support both English and Chinese thinking tags
-            think_tag_open_en = "<think>"
-            think_tag_close_en = "</think>"
-            think_tag_open_cn = "<思考过程>"
-            think_tag_close_cn = "</思考过程>"
-
-            # Track which tag format we're using
-            current_think_open = None
-            current_think_close = None
-
+            # Adjust generation parameters for GPT-OSS models to prevent loops
+            generation_params = self.generation_params.copy()
+            if 'gpt-oss' in target_model_key.lower():
+                # Only adjust max_tokens for GPT-OSS models
+                generation_params.update({
+                    "max_tokens": min(generation_params.get("max_tokens", 4096), 768),  # Tighter token cap to prevent loops
+                })
+                # Note: temperature and repetition_penalty should be handled via sampler in MLX-LM 0.26.3+
+            
             log_text(f"{log_label}_STREAM_START", "Starting to process token stream.")
+            
+            # Use GPT-OSS aware streaming for GPT-OSS models
+            if 'gpt-oss' in target_model_key.lower():
+                # Use traditional streaming but with GPT-OSS parsing
+                stream = stream_generate(
+                    current_model,
+                    current_tokenizer,
+                    prompt=prompt_for_llm,
+                    **generation_params,
+                    sampler=sampler,
+                )
 
-            for response_obj in stream:
-                token_chunk_full_response = response_obj.text
-                if not token_chunk_full_response:
-                    # log_text(f"{log_label}_DEBUG", "Empty token chunk received from stream, skipping.")
-                    continue
+                # Reset the streaming parser for new request
+                self._gpt_oss_streaming_parser.reset()
+                thinking_content_buffer = ""
+                response_content_buffer = ""
+                # Limit excessively long or repetitive thinking
+                MAX_THINKING_CHARS = 600
+                thinking_chars_sent = 0
+                thinking_truncation_notified = False
+                # Track incremental streaming lengths to avoid duplicate appends
+                cot_chars_already_sent = 0
+                answer_chars_already_sent = 0
+                
+                log_text(f"{log_label}_GPT_OSS_STREAMING", "Using GPT-OSS streaming parser with traditional stream")
 
-                # log_text(f"{log_label}_RAW_CHUNK", f"Raw chunk: '{token_chunk_full_response}'")
-
-                # Check for start of thinking block
-                if not in_thinking_block:
-                    # Check for English thinking tags first
-                    if think_tag_open_en in token_chunk_full_response:
-                        parts = token_chunk_full_response.split(think_tag_open_en, 1)
-                        current_think_open = think_tag_open_en
-                        current_think_close = think_tag_close_en
-                        pre_think_content = parts[0]
-                        post_think_content = parts[1]
-
-                        if pre_think_content:
-                            log_text(
-                                f"{log_label}_WARN",
-                                f"Unexpected content before {current_think_open}: '{pre_think_content}'. Treating as response.",
-                            )
-                            response_content_buffer += pre_think_content
-                            # Escape newlines for IPC transmission
-                            escaped_chunk = pre_think_content.replace(
-                                "\n", "\\n"
-                            ).replace("\r", "\\r")
-                            self._log_status(
-                                f"PROOF_STREAM:chunk:{escaped_chunk}", "blue"
-                            )
-
-                        in_thinking_block = True
-                        log_text(
-                            f"{log_label}_DEBUG",
-                            f"Entered thinking block (EN). Initial content for thinking: '{post_think_content[:50]}...'",
-                        )
-                        token_chunk_full_response = post_think_content
-
-                    # Check for Chinese thinking tags if English not found
-                    elif think_tag_open_cn in token_chunk_full_response:
-                        parts = token_chunk_full_response.split(think_tag_open_cn, 1)
-                        current_think_open = think_tag_open_cn
-                        current_think_close = think_tag_close_cn
-                        pre_think_content = parts[0]
-                        post_think_content = parts[1]
-
-                        if pre_think_content:
-                            log_text(
-                                f"{log_label}_WARN",
-                                f"Unexpected content before {current_think_open}: '{pre_think_content}'. Treating as response.",
-                            )
-                            response_content_buffer += pre_think_content
-                            # Escape newlines for IPC transmission
-                            escaped_chunk = pre_think_content.replace(
-                                "\n", "\\n"
-                            ).replace("\r", "\\r")
-                            self._log_status(
-                                f"PROOF_STREAM:chunk:{escaped_chunk}", "blue"
-                            )
-
-                        in_thinking_block = True
-                        log_text(
-                            f"{log_label}_DEBUG",
-                            f"Entered thinking block (CN). Initial content for thinking: '{post_think_content[:50]}...'",
-                        )
-                        token_chunk_full_response = post_think_content
-                    else:
-                        # Add debug to see what we're actually getting
-                        if (
-                            "<" in token_chunk_full_response
-                            or ">" in token_chunk_full_response
-                        ):
-                            print(
-                                f"[THINKING_DEBUG] CHUNK WITH BRACKETS (not detected as thinking): {repr(token_chunk_full_response)}"
-                            )
-
-                # Check for end of thinking block using the detected tag format
-                if (
-                    in_thinking_block
-                    and current_think_close
-                    and current_think_close in token_chunk_full_response
-                ):
-                    parts = token_chunk_full_response.split(current_think_close, 1)
-                    thinking_piece = parts[0]
-                    thinking_content_buffer += thinking_piece
-
-                    if thinking_content_buffer.strip():
-                        # Escape newlines for IPC transmission
-                        escaped_thinking = thinking_content_buffer.replace(
-                            "\n", "\\n"
-                        ).replace("\r", "\\r")
-                        self._log_status(
-                            f"PROOF_STREAM:thinking:{escaped_thinking}", "blue"
-                        )
-
-                    thinking_content_buffer = ""
-                    in_thinking_block = False
-                    # Reset the tag tracking
-                    current_think_open = None
-                    current_think_close = None
-                    log_text(f"{log_label}_DEBUG", f"Exited thinking block.")
-
-                    token_chunk_full_response = parts[1]
-
-                    # Clean up any redundant closing tag remnants
-                    for close_tag in [think_tag_close_en, think_tag_close_cn]:
-                        if token_chunk_full_response.lstrip().startswith(close_tag):
-                            log_text(
-                                f"{log_label}_WARN",
-                                f"Stripping redundant leading '{close_tag}' from response part post-exit.",
-                            )
-                            idx_strip = token_chunk_full_response.find(close_tag)
-                            token_chunk_full_response = token_chunk_full_response[
-                                idx_strip + len(close_tag) :
-                            ]
-                            break
-
-                if in_thinking_block:
-                    thinking_content_buffer += token_chunk_full_response
-                    if (
-                        "\n" in thinking_content_buffer
-                        or len(thinking_content_buffer) > 50
-                    ):
-                        if thinking_content_buffer.strip():
-                            # Escape newlines for IPC transmission
-                            escaped_thinking = thinking_content_buffer.replace(
-                                "\n", "\\n"
-                            ).replace("\r", "\\r")
-                            self._log_status(
-                                f"PROOF_STREAM:thinking:{escaped_thinking}", "blue"
-                            )
-                            thinking_content_buffer = ""
-                else:
+                for response_obj in stream:
+                    token_chunk_full_response = response_obj.text
+                    if not token_chunk_full_response:
+                        continue
+                    
+                    # Feed token to GPT-OSS parser
+                    result = self._gpt_oss_streaming_parser.parse_stream_token(token_chunk_full_response)
+                    if result:
+                        cot, answer = result
+                        # If final channel includes <think>...</think>, extract it for the Thoughts pane
+                        try:
+                            if answer and ("<think>" in answer or "</think>" in answer or "<思考过程>" in answer):
+                                # Extract inline thinking if analysis channel was unused
+                                if (not cot or not cot.strip()) and ("<think>" in answer and "</think>" in answer):
+                                    think_only = answer.split("<think>", 1)[1].split("</think>", 1)[0]
+                                    if think_only.strip():
+                                        escaped_thinking_inline = think_only.replace("\n", "\\n").replace("\r", "\\r")
+                                        self._log_status(f"PROOF_STREAM:thinking:{escaped_thinking_inline}", "blue")
+                                # Robustly strip any think tags from the answer
+                                answer = self._strip_think_tags(answer)
+                        except Exception:
+                            pass
+                        log_text(f"{log_label}_GPT_OSS_STREAM", f"Got COT: '{cot[:100]}...', Answer: '{answer[:100]}...'")
+                        
+                        # Send thinking content (analysis/COT) to UI incrementally
+                        if cot and cot.strip():
+                            # Determine new COT since last send
+                            new_cot_segment = cot[cot_chars_already_sent:]
+                            if new_cot_segment:
+                                remaining_budget = MAX_THINKING_CHARS - thinking_chars_sent
+                                if remaining_budget > 0:
+                                    thinking_piece = new_cot_segment[:remaining_budget]
+                                    if thinking_piece:
+                                        escaped_thinking = thinking_piece.replace("\n", "\\n").replace("\r", "\\r")
+                                        self._log_status(f"PROOF_STREAM:thinking:{escaped_thinking}", "blue")
+                                        thinking_chars_sent += len(thinking_piece)
+                                elif not thinking_truncation_notified:
+                                    self._log_status("PROOF_STREAM:thinking:(thinking truncated)", "blue")
+                                    thinking_truncation_notified = True
+                                cot_chars_already_sent = len(cot)
+                        
+                        # Send answer content to UI incrementally
+                        if answer and answer.strip():
+                            # Ensure no think blocks leak into the streamed final content
+                            cleaned_answer = self._strip_think_tags(answer)
+                            if not cleaned_answer:
+                                continue
+                            # Determine only the new portion since last send
+                            incremental = cleaned_answer[answer_chars_already_sent:]
+                            if incremental:
+                                escaped_answer = incremental.replace("\n", "\\n").replace("\r", "\\r")
+                                self._log_status(f"PROOF_STREAM:chunk:{escaped_answer}", "blue")
+                                answer_chars_already_sent = len(cleaned_answer)
+                            response_content_buffer = cleaned_answer  # Keep the full final answer for post-processing
+                    
+                    # Also send raw tokens for debugging
                     if token_chunk_full_response:
-                        response_content_buffer += token_chunk_full_response
+                        log_text(f"{log_label}_GPT_OSS_RAW", f"Raw token: '{token_chunk_full_response}'")
 
-                        # Escape newlines for IPC transmission
-                        escaped_chunk = token_chunk_full_response.replace(
-                            "\n", "\\n"
-                        ).replace("\r", "\\r")
-                        self._log_status(f"PROOF_STREAM:chunk:{escaped_chunk}", "blue")
+                # Get any remaining content from parser
+                final_result = self._gpt_oss_streaming_parser.finalize()
+                if final_result[0] or final_result[1]:
+                    cot, answer = final_result
+                    # If analysis channel missing but final contains <think>, extract it for UI
+                    try:
+                        if (not cot or not cot.strip()) and answer and ("<think>" in answer and "</think>" in answer):
+                            think_only = answer.split("<think>", 1)[1].split("</think>", 1)[0]
+                            if think_only.strip():
+                                escaped_thinking = think_only.replace("\n", "\\n").replace("\r", "\\r")
+                                self._log_status(f"PROOF_STREAM:thinking:{escaped_thinking}", "blue")
+                        # Robustly strip any residual think blocks from the final answer
+                        answer = self._strip_think_tags(answer)
+                    except Exception:
+                        pass
+                    if cot and cot.strip():
+                        # Send only new COT portion
+                        new_cot_segment = cot[cot_chars_already_sent:]
+                        if new_cot_segment:
+                            remaining_budget = MAX_THINKING_CHARS - thinking_chars_sent
+                            if remaining_budget > 0:
+                                thinking_piece = new_cot_segment[:remaining_budget]
+                                if thinking_piece:
+                                    escaped_thinking = thinking_piece.replace("\n", "\\n").replace("\r", "\\r")
+                                    self._log_status(f"PROOF_STREAM:thinking:{escaped_thinking}", "blue")
+                                    thinking_chars_sent += len(thinking_piece)
+                            elif not thinking_truncation_notified:
+                                self._log_status("PROOF_STREAM:thinking:(thinking truncated)", "blue")
+                                thinking_truncation_notified = True
+                            cot_chars_already_sent = len(cot)
+                    if answer and answer.strip():
+                        cleaned_answer = self._strip_think_tags(answer)
+                        if cleaned_answer:
+                            incremental = cleaned_answer[answer_chars_already_sent:]
+                            if incremental:
+                                escaped_answer = incremental.replace("\n", "\\n").replace("\r", "\\r")
+                                self._log_status(f"PROOF_STREAM:chunk:{escaped_answer}", "blue")
+                                answer_chars_already_sent = len(cleaned_answer)
+                            response_content_buffer = cleaned_answer
+
+                raw_llm_output = self._strip_think_tags(response_content_buffer)
+                
+            else:
+                # Use the traditional streaming approach for non-GPT-OSS models
+                stream = stream_generate(
+                    current_model,
+                    current_tokenizer,
+                    prompt=prompt_for_llm,
+                    **generation_params,
+                    sampler=sampler,
+                )
+
+                thinking_content_buffer = ""
+                response_content_buffer = ""
+                in_thinking_block = False
+                
+                # Support both English and Chinese thinking tags
+                think_tag_open_en = "<think>"
+                think_tag_close_en = "</think>"
+                think_tag_open_cn = "<思考过程>"
+                think_tag_close_cn = "</思考过程>"
+                
+                # Track which tag format we're using
+                current_think_open = None
+                current_think_close = None
+
+                for response_obj in stream:
+                    token_chunk_full_response = response_obj.text
+                    if not token_chunk_full_response:
+                        continue
+
+                    # Check for start of thinking block (standard format)
+                    if not in_thinking_block:
+                        # Check for English thinking tags first
+                        if think_tag_open_en in token_chunk_full_response:
+                            parts = token_chunk_full_response.split(think_tag_open_en, 1)
+                            current_think_open = think_tag_open_en
+                            current_think_close = think_tag_close_en
+                            pre_think_content = parts[0]
+                            post_think_content = parts[1]
+
+                            if pre_think_content:
+                                response_content_buffer += pre_think_content
+                                escaped_chunk = pre_think_content.replace("\n", "\\n").replace("\r", "\\r")
+                                self._log_status(f"PROOF_STREAM:chunk:{escaped_chunk}", "blue")
+
+                            in_thinking_block = True
+                            token_chunk_full_response = post_think_content
+
+                        # Check for Chinese thinking tags if English not found
+                        elif think_tag_open_cn in token_chunk_full_response:
+                            parts = token_chunk_full_response.split(think_tag_open_cn, 1)
+                            current_think_open = think_tag_open_cn
+                            current_think_close = think_tag_close_cn
+                            pre_think_content = parts[0]
+                            post_think_content = parts[1]
+
+                            if pre_think_content:
+                                response_content_buffer += pre_think_content
+                                escaped_chunk = pre_think_content.replace("\n", "\\n").replace("\r", "\\r")
+                                self._log_status(f"PROOF_STREAM:chunk:{escaped_chunk}", "blue")
+
+                            in_thinking_block = True
+                            token_chunk_full_response = post_think_content
+
+                    # Check for end of thinking block
+                    if (
+                        in_thinking_block
+                        and current_think_close
+                        and current_think_close in token_chunk_full_response
+                    ):
+                        parts = token_chunk_full_response.split(current_think_close, 1)
+                        thinking_piece = parts[0]
+                        thinking_content_buffer += thinking_piece
+
+                        if thinking_content_buffer.strip():
+                            escaped_thinking = thinking_content_buffer.replace("\n", "\\n").replace("\r", "\\r")
+                            self._log_status(f"PROOF_STREAM:thinking:{escaped_thinking}", "blue")
+
+                        thinking_content_buffer = ""
+                        in_thinking_block = False
+                        current_think_open = None
+                        current_think_close = None
+
+                        token_chunk_full_response = parts[1]
+
+                    if in_thinking_block:
+                        thinking_content_buffer += token_chunk_full_response
+                        
+                        if "\n" in thinking_content_buffer or len(thinking_content_buffer) > 50:
+                            if thinking_content_buffer.strip():
+                                escaped_thinking = thinking_content_buffer.replace("\n", "\\n").replace("\r", "\\r")
+                                self._log_status(f"PROOF_STREAM:thinking:{escaped_thinking}", "blue")
+                                thinking_content_buffer = ""
+                    else:
+                        if token_chunk_full_response:
+                            response_content_buffer += token_chunk_full_response
+                            escaped_chunk = token_chunk_full_response.replace("\n", "\\n").replace("\r", "\\r")
+                            self._log_status(f"PROOF_STREAM:chunk:{escaped_chunk}", "blue")
+
+                # Handle any remaining thinking content
+                if thinking_content_buffer.strip() and in_thinking_block:
+                    escaped_thinking = thinking_content_buffer.replace("\n", "\\n").replace("\r", "\\r")
+                    self._log_status(f"PROOF_STREAM:thinking:{escaped_thinking}", "blue")
+
+                # Safety: strip any stray think tags if they slipped into the buffer
+                raw_llm_output = self._strip_think_tags(response_content_buffer)
 
             log_text(f"{log_label}_STREAM_END", "Finished processing token stream.")
 
-            if thinking_content_buffer.strip() and in_thinking_block:
-                # Escape newlines for IPC transmission
-                escaped_thinking = thinking_content_buffer.replace("\n", "\\n").replace(
-                    "\r", "\\r"
-                )
-                self._log_status(f"PROOF_STREAM:thinking:{escaped_thinking}", "blue")
-            elif thinking_content_buffer.strip() and not in_thinking_block:
-                log_text(
-                    f"{log_label}_WARN",
-                    f"Orphaned thinking content after loop but not in_thinking_block: '{thinking_content_buffer[:100]}...' Discarding.",
-                )
+            # Check if this is GPT-OSS format and extract clean response
+            if self._gpt_oss_parser.is_gpt_oss_format(raw_llm_output):
+                log_text(f"{log_label}_GPT_OSS_DETECTED", "Detected GPT-OSS format, extracting clean response")
+                clean_response = self._gpt_oss_parser.extract_clean_response(raw_llm_output)
+                if clean_response:
+                    raw_llm_output = clean_response
+                    log_text(f"{log_label}_GPT_OSS_CLEANED", f"Extracted clean response: '{clean_response[:100]}...'")
 
-            raw_llm_output = response_content_buffer
-
+            # Final safety: ensure clean text before post-processing
+            raw_llm_output = self._strip_think_tags(raw_llm_output)
             final_processed_text = self._post_process_response(
                 raw_llm_output.strip(), mode
             )
@@ -761,6 +900,11 @@ class LLMHandler:
             log_text(
                 "LLM_CONFIG", f"Selected proofing model set to ID: {proofing_model_id}"
             )
+            # Emit concise stdout line indicating model selection
+            try:
+                print(f"MODEL_SELECTED:proof:{proofing_model_id}", flush=True)
+            except Exception:
+                pass
             changed = True
 
         if letter_model_id and self._selected_letter_model_id != letter_model_id:
@@ -768,6 +912,10 @@ class LLMHandler:
             log_text(
                 "LLM_CONFIG", f"Selected letter model set to ID: {letter_model_id}"
             )
+            try:
+                print(f"MODEL_SELECTED:letter:{letter_model_id}", flush=True)
+            except Exception:
+                pass
             changed = True
 
         if changed:

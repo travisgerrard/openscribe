@@ -5,7 +5,15 @@ vosk==0.3.44
 numpy>=1.24.0
 phonetics>=1.0.5
 psutil>=5.9.0  # For memory monitoring
-mlx_lm>=0.16.2  # For local LLM inference
+mlx_lm>=0.26.3  # For local LLM inference (required for GPT-OSS-20B support)
+transformers>=4.42.4
+accelerate>=0.30.0
+pynput>=1.7.6  # For hotkey functionality
+
+# ASR (Speech-to-Text) dependencies
+mlx-whisper>=0.4.0
+# Note: parakeet-mlx requires Python 3.10+ and may not be available on all systems
+# If installation fails, the app will fall back to Whisper models
 
 # Testing dependencies
 pytest>=7.0.0

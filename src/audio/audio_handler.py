@@ -334,7 +334,12 @@ class AudioHandler:
 
     def _log_status(self, message, color="black"):
         """Helper to call the status update callback if available."""
-        print(f"AudioHandler Status: {message}")  # Also print to console
+        try:
+            from src.config import config as _cfg
+            if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                print(f"AudioHandler Status: {message}")
+        except Exception:
+            print(f"AudioHandler Status: {message}")
         if self.on_status_update:
             self.on_status_update(message, color)
 
@@ -359,7 +364,12 @@ class AudioHandler:
                     memory_monitor._log_stats(stats)
                 self._last_memory_log = current_time
             except Exception as e:
-                print(f"Error in _log_memory_usage: {e}")
+                try:
+                    from src.config import config as _cfg
+                    if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                        print(f"Error in _log_memory_usage: {e}")
+                except Exception:
+                    pass
 
     def start(self):
         """DEPRECATED: Use start_async. Starts the audio processing thread."""
@@ -435,13 +445,23 @@ class AudioHandler:
             self._audio_thread.start()
             self._log_status("Audio processing thread started.", "grey")
 
-            print(
-                "[DEBUG] Setting listening state to 'preparing' in _start_worker (waiting for Vosk)"
-            )
+            try:
+                from src.config import config as _cfg
+                if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                    print(
+                        "[DEBUG] Setting listening state to 'preparing' in _start_worker (waiting for Vosk)"
+                    )
+            except Exception:
+                pass
             self.set_listening_state("preparing")
             
             # Load Vosk model asynchronously
-            print("[DEBUG] Starting Vosk model loading in _start_worker")
+            try:
+                from src.config import config as _cfg
+                if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                    print("[DEBUG] Starting Vosk model loading in _start_worker")
+            except Exception:
+                pass
             vosk_thread = threading.Thread(target=self.load_vosk_model_async, daemon=True)
             vosk_thread.start()
 

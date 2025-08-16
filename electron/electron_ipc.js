@@ -62,7 +62,36 @@ function initializeIpcHandlers() {
       if (settings.selectedLetterModel) {
         store.set('selectedLetterModel', settings.selectedLetterModel);
       }
+      // Save ASR model selection
+      if (settings.selectedAsrModel) {
+        store.set('selectedAsrModel', settings.selectedAsrModel);
+      }
       console.log('[IPC] Settings saved to store.');
+
+      // Proactively push updated config to Python backend so model changes take effect immediately
+      try {
+        const pythonShell = getPythonShell();
+        if (pythonShell && pythonShell.send) {
+          const configPayload = {
+            wakeWords: store.get('wakeWords', { dictate: [], proofread: [], letter: [] }),
+            proofingPrompt: store.get('proofingPrompt', ''),
+            letterPrompt: store.get('letterPrompt', ''),
+            selectedProofingModel: store.get('selectedProofingModel', ''),
+            selectedLetterModel: store.get('selectedLetterModel', '')
+          };
+          const savedAsrModel = store.get('selectedAsrModel');
+          if (savedAsrModel) {
+            configPayload.selectedAsrModel = savedAsrModel;
+          }
+          const msg = `CONFIG:${JSON.stringify(configPayload)}`;
+          pythonShell.send(msg);
+          console.log('[IPC] Pushed updated CONFIG to Python backend.');
+        } else {
+          console.warn('[IPC] Python shell not available to push updated CONFIG. It will apply on next launch.');
+        }
+      } catch (e) {
+        console.error('[IPC] Error pushing updated CONFIG to Python backend:', e);
+      }
     }
   });
 
@@ -73,7 +102,8 @@ function initializeIpcHandlers() {
       proofingPrompt: store.get('proofingPrompt', ''),
       letterPrompt: store.get('letterPrompt', ''),
       selectedProofingModel: store.get('selectedProofingModel', ''),
-      selectedLetterModel: store.get('selectedLetterModel', '')
+      selectedLetterModel: store.get('selectedLetterModel', ''),
+      selectedAsrModel: store.get('selectedAsrModel', '')
     };
     console.log('[IPC] load-settings: returning', settings);
     return settings;
@@ -95,7 +125,7 @@ function initializeIpcHandlers() {
   // Handle vocabulary API calls
   ipcMain.handle('vocabulary-api', async (_event, command, data = {}) => {
     console.log('[IPC] vocabulary-api received:', command, data);
-    
+
     try {
       const pythonShell = getPythonShell();
       if (!pythonShell || !pythonShell.send) {
@@ -106,7 +136,7 @@ function initializeIpcHandlers() {
       // Send vocabulary command to Python backend
       return new Promise((resolve) => {
         const messageId = `vocab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
+
         // Set up one-time listener for the response
         const responseHandler = (message) => {
           if (message.startsWith(`VOCAB_RESPONSE:${messageId}:`)) {
@@ -120,20 +150,20 @@ function initializeIpcHandlers() {
             }
           }
         };
-        
+
         pythonShell.on('message', responseHandler);
-        
+
         // Send the command with message ID
         const vocabularyMessage = `VOCABULARY_API:${messageId}:${JSON.stringify({ command, data })}`;
         pythonShell.send(vocabularyMessage);
-        
+
         // Set timeout for response
         setTimeout(() => {
           pythonShell.removeListener('message', responseHandler);
           resolve({ success: false, error: 'Vocabulary API timeout' });
         }, 5000);
       });
-      
+
     } catch (error) {
       console.error('[IPC] Error in vocabulary API:', error);
       return { success: false, error: error.message };

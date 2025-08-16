@@ -1,3 +1,25 @@
+## Stdout Contract (Essential)
+
+Backend messages sent to Electron via stdout must begin with one of these prefixes:
+
+- PYTHON_BACKEND_READY
+- GET_CONFIG
+- MODELS:            // one JSON summary at startup
+- MODEL_SELECTED:    // changes only (mode:id)
+- STATE:             // JSON state snapshots
+- STATUS:            // status messages (color:text)
+- FINAL_TRANSCRIPT:  // dictation final text
+- DICTATION_PREVIEW: // full text before LLM in proof mode
+- TRANSCRIPTION:     // PROOFED or LETTER final text
+
+Any other console diagnostics should be written to the rotating log file via `log_text()` and suppressed from stdout when `MINIMAL_TERMINAL_OUTPUT` is enabled.
+
+### Runtime verbosity control
+
+- `CT_VERBOSE=1` disables minimal terminal mode (prints all `log_text` labels to stdout).
+- `CT_LOG_WHITELIST="LABEL1,LABEL2"` adds additional labels to the terminal whitelist without code edits.
+
+This contract reduces console noise while keeping UI and Electron logic stable.
 # IPC Protocol Specification
 
 ## Overview

@@ -29,7 +29,12 @@ class MemoryMonitor:
     """Monitors memory usage of the application."""
 
     def __init__(self, log_interval: int = 10, log_to_file: bool = True):
-        print("!!!!!!!!!! EXECUTING MODIFIED MemoryMonitor.__init__ !!!!!!!!!!!!")
+        try:
+            from src.config import config as _cfg
+            if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                print("!!!!!!!!!! EXECUTING MODIFIED MemoryMonitor.__init__ !!!!!!!!!!!!")
+        except Exception:
+            pass
         """
         Initialize the memory monitor.
         
@@ -53,9 +58,14 @@ class MemoryMonitor:
         self._cleanup_logs()
 
     def start(self) -> None:
-        print(
-            "[DEBUG] MemoryMonitor.start() CALLED - THIS IS THE NEW SIMPLIFIED VERSION - SHOULD BE DISABLED!"
-        )
+        try:
+            from src.config import config as _cfg
+            if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                print(
+                    "[DEBUG] MemoryMonitor.start() CALLED - THIS IS THE NEW SIMPLIFIED VERSION - SHOULD BE DISABLED!"
+                )
+        except Exception:
+            pass
         return
 
     def stop(self) -> None:
@@ -91,7 +101,7 @@ class MemoryMonitor:
             if additional_data:
                 log_entry.update(additional_data)
 
-            # Log to file only - removed console spam: print(f"[MEMORY_OP] {json.dumps(log_entry, indent=2)}")
+            # Log to file only
             if self.log_to_file:
                 with open(self._log_file, "a") as f:
                     f.write(json.dumps(log_entry) + "\n")
@@ -190,9 +200,14 @@ class MemoryMonitor:
 
     def _monitor_loop(self) -> None:
         """Main monitoring loop that runs in a separate thread."""
-        print(
-            "[DEBUG] MemoryMonitor._monitor_loop() CALLED - THIS IS THE NEW SIMPLIFIED VERSION - SHOULD BE DISABLED!"
-        )
+        try:
+            from src.config import config as _cfg
+            if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                print(
+                    "[DEBUG] MemoryMonitor._monitor_loop() CALLED - THIS IS THE NEW SIMPLIFIED VERSION - SHOULD BE DISABLED!"
+                )
+        except Exception:
+            pass
         return
 
     def _log_stats(
@@ -226,7 +241,7 @@ class MemoryMonitor:
                         ),
                     }
                 )
-            # Removed excessive console spam: print(f"[MEMORY] {json.dumps(log_entry, indent=2)}")
+            # Write only to file
             if self.log_to_file:
                 try:
                     with open(self._log_file, "a") as f:
@@ -247,7 +262,12 @@ class MemoryMonitor:
                     # Open in write mode to clear the file
                     with open(log_file, "w") as f:
                         f.write("")
-                    print(f"Cleared log file: {log_file}")
+                    try:
+                        from src.config import config as _cfg
+                        if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                            print(f"Cleared log file: {log_file}")
+                    except Exception:
+                        pass
             except Exception as e:
                 print(f"Error cleaning up log file {log_file}: {e}")
                 traceback.print_exc()

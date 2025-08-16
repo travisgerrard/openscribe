@@ -8,6 +8,16 @@ import { handleUiUpdate } from './renderer_expansion_ui.js';
 
 export function registerIPCHandlers() {
   let isFirstThinkingMessageForStream = true;
+  const sanitizeThinkBlocks = (text) => {
+    if (!text) return text;
+    let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    cleaned = cleaned.replace(/<思考过程>[\s\S]*?<\/思考过程>/g, '');
+    cleaned = cleaned.replace(/<\/?think>/gi, '');
+    cleaned = cleaned.replace(/<思考过程>|<\/思考过程>/g, '');
+    // IMPORTANT: Do NOT trim here. Trimming would remove leading spaces
+    // from streamed chunks and cause words to concatenate in the UI.
+    return cleaned;
+  };
   // New UI update handler for expansion areas
   if (window.electronAPI && window.electronAPI.on) {
     // Ensure to remove previous listener if any, to prevent multiple registrations during hot-reloads
@@ -93,7 +103,9 @@ export function registerIPCHandlers() {
             }
           } else if (streamType === 'chunk') {
             // Unescape newlines from IPC transmission
-            const unescapedChunk = streamPayload.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+            const unescapedChunkRaw = streamPayload.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+            // Safety: sanitize any leaked think blocks in UI layer
+            const unescapedChunk = sanitizeThinkBlocks(unescapedChunkRaw);
 
             // Ensure response area is shown when first chunk arrives
             const responseArea = document.getElementById('response-area');
@@ -101,7 +113,9 @@ export function registerIPCHandlers() {
               handleUiUpdate({ type: 'show_response_stream_start' });
             }
 
-            handleUiUpdate({ type: 'append_response_chunk', chunk: unescapedChunk });
+            if (unescapedChunk && unescapedChunk.length > 0) {
+              handleUiUpdate({ type: 'append_response_chunk', chunk: unescapedChunk });
+            }
           } else if (streamType === 'end') {
             logMessage('Proof Stream: End of stream received from backend. Response complete.', 'ipc');
             isFirstThinkingMessageForStream = true; // Reset for the next proofing session

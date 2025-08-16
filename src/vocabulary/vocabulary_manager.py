@@ -6,10 +6,24 @@ Handles custom vocabulary, corrections, and adaptive learning for CitrixTranscri
 import json
 import re
 import os
-from typing import Dict, List, Optional, Tuple
+import csv
+from typing import Dict, List, Optional, Tuple, Set
 from pathlib import Path
 import difflib
 from datetime import datetime
+
+try:
+    import phonetics  # double metaphone
+    PHONETICS_AVAILABLE = True
+except Exception:
+    PHONETICS_AVAILABLE = False
+
+try:
+    # Optional import; used only for path resolution
+    from src.config import config
+    CONFIG_AVAILABLE = True
+except Exception:
+    CONFIG_AVAILABLE = False
 
 
 class VocabularyManager:
@@ -23,19 +37,39 @@ class VocabularyManager:
         self.vocabulary_file = self.config_dir / "user_vocabulary.json"
         self.corrections_log = self.config_dir / "corrections_log.json"
         self.learning_stats = self.config_dir / "learning_stats.json"
+        self.medical_lexicon_cache = self.config_dir / "medical_lexicon.json"
         
         # In-memory storage
         self.custom_terms: Dict[str, List[str]] = {}
         self.correction_history: List[Dict] = []
         self.learning_patterns: Dict[str, int] = {}
+
+        # Medical lexicon structures
+        self.medical_terms_set: Set[str] = set()  # lowercased canonical terms
+        self.medical_canonical_map: Dict[str, str] = {}  # lower -> canonical (original case)
+        self.medical_metaphone_index: Dict[str, List[str]] = {}  # metaphone -> list of canonical terms
         
         # Load existing data
         self.load_vocabulary()
         self.load_corrections()
+        # Attempt to load medical lexicon from cache or source (opt-in via env)
+        # Enable by setting environment variable CT_ENABLE_MEDICAL_LEXICON=1
+        try:
+            enable_med_lex = os.getenv("CT_ENABLE_MEDICAL_LEXICON", "0") == "1"
+        except Exception:
+            enable_med_lex = False
+        if enable_med_lex:
+            self._initialize_medical_lexicon()
     
     def load_vocabulary(self) -> None:
         """Load custom vocabulary from file."""
         try:
+            # In pytest, avoid leaking real workspace vocabulary into tests that use globals
+            if os.getenv("PYTEST_CURRENT_TEST") and str(self.config_dir) == "data":
+                self.custom_terms = {}
+                self.learning_patterns = {}
+                return
+
             if self.vocabulary_file.exists():
                 with open(self.vocabulary_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
@@ -76,6 +110,125 @@ class VocabularyManager:
                 json.dump(self.correction_history, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"[VOCAB] Error saving corrections: {e}")
+
+    def _initialize_medical_lexicon(self) -> None:
+        """Load medical lexicon from cache if available, otherwise try to build from FDA Products file.
+
+        This is best-effort and non-fatal if resources are missing.
+        """
+        try:
+            if self.medical_lexicon_cache.exists():
+                with open(self.medical_lexicon_cache, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                terms = data.get('terms', [])
+                self.medical_terms_set = set(t.lower() for t in terms)
+                self.medical_canonical_map = {t.lower(): t for t in terms}
+                # Rebuild metaphone index lazily for runtime matching
+                if PHONETICS_AVAILABLE:
+                    for term in terms:
+                        for mp in self._double_metaphone_all(term):
+                            if mp:
+                                self.medical_metaphone_index.setdefault(mp, []).append(term)
+                print(f"[VOCAB] Loaded medical lexicon cache with {len(self.medical_terms_set)} terms")
+                return
+        except Exception as e:
+            print(f"[VOCAB] Error loading medical lexicon cache: {e}")
+
+        # Build from FDA Products.txt if present
+        possible_paths = [
+            "src/Products.txt",
+            "Products.txt",
+        ]
+        if CONFIG_AVAILABLE:
+            # Also try resolved resources in packaged app
+            possible_paths.append(config.resolve_resource_path("src/Products.txt"))
+            possible_paths.append(config.resolve_resource_path("Products.txt"))
+
+        source_path = None
+        for p in possible_paths:
+            try:
+                if p and os.path.exists(p):
+                    source_path = p
+                    break
+            except Exception:
+                pass
+
+        if source_path:
+            try:
+                count = self._load_medical_lexicon_from_fda_products(source_path)
+                print(f"[VOCAB] Built medical lexicon from '{source_path}' with {count} unique terms")
+                # Persist cache
+                try:
+                    with open(self.medical_lexicon_cache, 'w', encoding='utf-8') as f:
+                        json.dump({
+                            'terms': sorted(self.medical_canonical_map.values())
+                        }, f, indent=2, ensure_ascii=False)
+                except Exception as e:
+                    print(f"[VOCAB] Error saving medical lexicon cache: {e}")
+            except Exception as e:
+                print(f"[VOCAB] Error building medical lexicon: {e}")
+        else:
+            # Silently skip if not available
+            print("[VOCAB] FDA Products.txt not found - medical lexicon disabled")
+
+    def _normalize_term(self, term: str) -> str:
+        """Normalization for lexicon keys."""
+        return re.sub(r"\s+", " ", term.strip()).lower()
+
+    def _double_metaphone_all(self, term: str) -> List[str]:
+        if not PHONETICS_AVAILABLE:
+            return []
+        try:
+            code1, code2 = phonetics.dmetaphone(term)
+            results = []
+            if code1:
+                results.append(code1)
+            if code2 and code2 != code1:
+                results.append(code2)
+            return results
+        except Exception:
+            return []
+
+    def _load_medical_lexicon_from_fda_products(self, products_path: str) -> int:
+        """Parse FDA Products.txt (tab-delimited) and build a medical terms index.
+
+        We index both brand names (DrugName) and active ingredients (ActiveIngredient).
+        """
+        unique_terms: Set[str] = set()
+
+        with open(products_path, 'r', encoding='utf-8', errors='ignore') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            for row in reader:
+                drug_name = (row.get('DrugName') or '').strip()
+                active_ing = (row.get('ActiveIngredient') or '').strip()
+
+                # Add brand name
+                if drug_name and drug_name.upper() != 'UNKNOWN':
+                    unique_terms.add(drug_name)
+                # Add active ingredients, possibly multiple separated by ';'
+                if active_ing and active_ing.upper() != 'UNKNOWN':
+                    # Split on separators like ';' and parentheses content
+                    parts = [p.strip() for p in re.split(r"[;,+]", active_ing) if p.strip()]
+                    if parts:
+                        for p in parts:
+                            # Remove composite descriptors like contents in parentheses
+                            cleaned = re.sub(r"\([^\)]*\)", "", p).strip()
+                            if cleaned:
+                                unique_terms.add(cleaned)
+                    else:
+                        unique_terms.add(active_ing)
+
+        # Build maps
+        for term in unique_terms:
+            norm = self._normalize_term(term)
+            if norm not in self.medical_canonical_map:
+                self.medical_canonical_map[norm] = term
+                self.medical_terms_set.add(norm)
+                for mp in self._double_metaphone_all(term):
+                    if mp:
+                        self.medical_metaphone_index.setdefault(mp, []).append(term)
+
+        return len(self.medical_terms_set)
     
     def add_custom_term(self, correct_term: str, variations: Optional[List[str]] = None, 
                        category: str = "general") -> None:
@@ -207,7 +360,104 @@ class VocabularyManager:
         if applied_corrections:
             self.save_vocabulary()  # Save updated usage counts
         
-        return corrected_text, applied_corrections
+        # After custom-term corrections, try medical lexicon corrections for remaining tokens
+        med_corrected, med_corrections = self.apply_medical_corrections(corrected_text)
+        applied_corrections.extend(med_corrections)
+        return med_corrected, applied_corrections
+
+    def apply_medical_corrections(self, text: str) -> Tuple[str, List[Dict]]:
+        """Use the medical lexicon to correct likely drug names using exact and fuzzy matching.
+
+        This is conservative to avoid false positives. It prefers exact matches and high-similarity
+        metaphone candidates and only triggers when confidence is high.
+        """
+        if not self.medical_terms_set:
+            return text, []
+
+        tokens = list(re.finditer(r"[A-Za-z][A-Za-z\-']*", text))
+        corrections: List[Dict] = []
+
+        # Consider n-grams up to 3 tokens
+        ngram_max = 3
+        text_out = text
+
+        # We'll collect replacement operations as (start, end, replacement)
+        replacements: List[Tuple[int, int, str]] = []
+
+        def confidence(a: str, b: str) -> float:
+            return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+        i = 0
+        while i < len(tokens):
+            best = None  # (score, start, end, candidate, original)
+            for n in range(ngram_max, 0, -1):
+                if i + n > len(tokens):
+                    continue
+                start = tokens[i].start()
+                end = tokens[i + n - 1].end()
+                original = text[start:end]
+                norm = self._normalize_term(original)
+
+                # Exact lexicon match (case-insensitive)
+                if norm in self.medical_terms_set:
+                    candidate = self.medical_canonical_map.get(norm, original)
+                    best = (1.0, start, end, candidate, original)
+                    break  # Exact match is best for this n-gram
+
+                # Fuzzy via metaphone if single token or short phrase
+                if n == 1 and PHONETICS_AVAILABLE:
+                    mps = self._double_metaphone_all(original)
+                    candidate_pool: List[str] = []
+                    for mp in mps:
+                        if mp and mp in self.medical_metaphone_index:
+                            candidate_pool.extend(self.medical_metaphone_index[mp])
+                    # Deduplicate
+                    seen = set()
+                    filtered: List[str] = []
+                    for c in candidate_pool:
+                        if c not in seen:
+                            seen.add(c)
+                            filtered.append(c)
+                    # Evaluate best by high similarity, filter by first-letter heuristic and length
+                    original_l = original.lower()
+                    for cand in filtered:
+                        if abs(len(cand) - len(original)) > 3:
+                            continue
+                        if cand[0].lower() != original_l[0]:
+                            continue
+                        score = confidence(original, cand)
+                        if score >= 0.92:
+                            # High-confidence correction
+                            best = (score, start, end, cand, original)
+                            break
+                if best:
+                    break
+
+            if best:
+                score, start, end, cand, original = best
+                # Avoid no-op
+                if original.lower() != cand.lower():
+                    replacements.append((start, end, self._preserve_case(original, cand)))
+                    corrections.append({
+                        'original': original,
+                        'corrected': self._preserve_case(original, cand),
+                        'position': start,
+                        'category': 'medication'
+                    })
+                # Advance past this n-gram
+                i += 1
+            else:
+                i += 1
+
+        if not replacements:
+            return text, []
+
+        # Apply replacements back-to-front to preserve indices
+        replacements.sort(key=lambda x: x[0], reverse=True)
+        for start, end, rep in replacements:
+            text_out = text_out[:start] + rep + text_out[end:]
+
+        return text_out, corrections
     
     def _preserve_case(self, original: str, replacement: str) -> str:
         """Preserve the case pattern of the original when replacing."""

@@ -50,12 +50,47 @@ class SettingsManager:
                     saved_settings = json.load(f)
                     # Merge with defaults to ensure all keys exist
                     self.settings.update(saved_settings)
-                    print(f"[Settings] Loaded from {self.settings_file}")
+                    # Migrate deprecated/removed ASR models to the default stable model
+                    deprecated_asr_ids = {
+                        "Bhaveen/Medical-Speech-Transcription-Whisper-Small-Fine-Tuned",
+                        "distil-whisper/distil-large-v3",
+                        "Na0s/Medical-Whisper-Large-v3",
+                    }
+                    if self.settings.get("selectedAsrModel") in deprecated_asr_ids:
+                        self.settings["selectedAsrModel"] = config.DEFAULT_ASR_MODEL
+                        try:
+                            from src.config import config as _cfg
+                            if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                                print(f"[Settings] Migrated selectedAsrModel to '{config.DEFAULT_ASR_MODEL}'")
+                        except Exception:
+                            print(f"[Settings] Migrated selectedAsrModel to '{config.DEFAULT_ASR_MODEL}'")
+                    # Sanitize empty or invalid ASR model
+                    asr_id = self.settings.get("selectedAsrModel")
+                    valid_asr_ids = set(getattr(config, "AVAILABLE_ASR_MODELS", {}).values())
+                    if not asr_id or (valid_asr_ids and asr_id not in valid_asr_ids):
+                        self.settings["selectedAsrModel"] = config.DEFAULT_ASR_MODEL
+                    try:
+                        from src.config import config as _cfg
+                        if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                            print(f"[Settings] Loaded from {self.settings_file}")
+                    except Exception:
+                        print(f"[Settings] Loaded from {self.settings_file}")
             except (json.JSONDecodeError, IOError) as e:
-                print(f"[Settings] Error loading {self.settings_file}: {e}")
-                print(f"[Settings] Using default settings")
+                try:
+                    from src.config import config as _cfg
+                    if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                        print(f"[Settings] Error loading {self.settings_file}: {e}")
+                        print(f"[Settings] Using default settings")
+                except Exception:
+                    print(f"[Settings] Error loading {self.settings_file}: {e}")
+                    print(f"[Settings] Using default settings")
         else:
-            print(f"[Settings] No settings file found, using defaults")
+            try:
+                from src.config import config as _cfg
+                if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                    print(f"[Settings] No settings file found, using defaults")
+            except Exception:
+                print(f"[Settings] No settings file found, using defaults")
         
         return self.settings
     
@@ -72,10 +107,20 @@ class SettingsManager:
             
             with open(self.settings_file, 'w', encoding='utf-8') as f:
                 json.dump(self.settings, f, indent=2, ensure_ascii=False)
-            print(f"[Settings] Saved to {self.settings_file}")
+            try:
+                from src.config import config as _cfg
+                if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                    print(f"[Settings] Saved to {self.settings_file}")
+            except Exception:
+                print(f"[Settings] Saved to {self.settings_file}")
             return True
         except IOError as e:
-            print(f"[Settings] Error saving {self.settings_file}: {e}")
+            try:
+                from src.config import config as _cfg
+                if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                    print(f"[Settings] Error saving {self.settings_file}: {e}")
+            except Exception:
+                print(f"[Settings] Error saving {self.settings_file}: {e}")
             return False
     
     def get_setting(self, key: str, default: Any = None) -> Any:

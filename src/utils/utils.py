@@ -7,7 +7,15 @@ def log_text(label: str, content: str):
     """Logs a message with a timestamp and label to the configured log file with rotation."""
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     log_entry = f"{timestamp} [{label}] {content}\n"
-    print(log_entry.strip())
+    # Controlled terminal printing: keep stdout quiet unless label is whitelisted or minimal mode is off
+    try:
+        if not getattr(config, "MINIMAL_TERMINAL_OUTPUT", False) or (
+            hasattr(config, "TERMINAL_LOG_WHITELIST") and label in config.TERMINAL_LOG_WHITELIST
+        ):
+            print(log_entry.strip())
+    except Exception:
+        # Fall back to printing on any config access error
+        print(log_entry.strip())
 
     try:
         # Check if log file exists and rotate if it's too large

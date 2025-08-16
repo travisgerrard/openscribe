@@ -4,7 +4,13 @@ try:
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
-    print("[WARN] numpy not available in transcription_handler.py - using mock")
+    # Keep warning in stdout only if minimal mode is disabled
+    try:
+        from src.config import config as _cfg
+        if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+            print("[WARN] numpy not available in transcription_handler.py - using mock")
+    except Exception:
+        print("[WARN] numpy not available in transcription_handler.py - using mock")
     # Create minimal mock numpy for CI
     class MockArray:
         def __init__(self, data):
@@ -40,14 +46,24 @@ try:
     MLX_WHISPER_AVAILABLE = True
 except ImportError:
     MLX_WHISPER_AVAILABLE = False
-    print("[WARN] mlx_whisper not available - Whisper transcription will be mocked")
+    try:
+        from src.config import config as _cfg
+        if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+            print("[WARN] mlx_whisper not available - Whisper transcription will be mocked")
+    except Exception:
+        print("[WARN] mlx_whisper not available - Whisper transcription will be mocked")
 
 try:
     import parakeet_mlx
     PARAKEET_MLX_AVAILABLE = True
 except ImportError:
     PARAKEET_MLX_AVAILABLE = False
-    print("[WARN] parakeet_mlx not available - Parakeet transcription will be mocked")
+    try:
+        from src.config import config as _cfg
+        if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+            print("[WARN] parakeet_mlx not available - Parakeet transcription will be mocked")
+    except Exception:
+        print("[WARN] parakeet_mlx not available - Parakeet transcription will be mocked")
 
 # Create mock transcription functions if neither library is available
 if not MLX_WHISPER_AVAILABLE and not PARAKEET_MLX_AVAILABLE:
@@ -72,12 +88,34 @@ if not MLX_WHISPER_AVAILABLE and not PARAKEET_MLX_AVAILABLE:
 
 import threading
 
+# Optional Transformers fallback for non-MLX Whisper repos
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None  # type: ignore
+
+try:
+    from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline as hf_pipeline
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    AutoModelForSpeechSeq2Seq = None  # type: ignore
+    AutoProcessor = None  # type: ignore
+    hf_pipeline = None  # type: ignore
+
 try:
     import pyaudio
     PYAUDIO_AVAILABLE = True
 except ImportError:
     PYAUDIO_AVAILABLE = False
-    print("[WARN] pyaudio not available in transcription_handler.py - using mock")
+    try:
+        from src.config import config as _cfg
+        if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+            print("[WARN] pyaudio not available in transcription_handler.py - using mock")
+    except Exception:
+        print("[WARN] pyaudio not available in transcription_handler.py - using mock")
     # Create mock pyaudio
     class MockPyAudio:
         paInt16 = "paInt16"
@@ -95,7 +133,12 @@ try:
     HUGGINGFACE_HUB_AVAILABLE = True
 except ImportError:
     HUGGINGFACE_HUB_AVAILABLE = False
-    print("[WARN] huggingface_hub not available - using mock download")
+    try:
+        from src.config import config as _cfg
+        if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+            print("[WARN] huggingface_hub not available - using mock download")
+    except Exception:
+        print("[WARN] huggingface_hub not available - using mock download")
     def snapshot_download(repo_id, local_dir=None, **kwargs):
         # Create a mock local directory structure
         mock_dir = local_dir or f"./mock_models/{repo_id.replace('/', '_')}"
@@ -152,21 +195,38 @@ class TranscriptionHandler:
                 # In case settings_manager is not available (testing, etc.)
                 self.selected_asr_model = config.DEFAULT_ASR_MODEL
 
+        # Ensure selected_asr_model is valid string; fallback to default
+        if not self.selected_asr_model:
+            self.selected_asr_model = config.DEFAULT_ASR_MODEL
         # Determine the model type and library to use
         self.model_type = self._detect_model_type(self.selected_asr_model)
         self._log_status(f"Detected model type: {self.model_type} for {self.selected_asr_model}", "grey")
+        # Decide whisper backend explicitly: MLX vs Transformers
+        self._whisper_backend = None
+        if self.model_type == "whisper":
+            self._whisper_backend = self._detect_whisper_backend(self.selected_asr_model)
+            self._log_status(f"Selected whisper backend: {self._whisper_backend}", "grey")
         
-        # Load Parakeet model if needed
-        if self.model_type == "parakeet" and PARAKEET_MLX_AVAILABLE:
-            try:
-                self._log_status(f"Loading Parakeet model: {self.selected_asr_model}", "grey")
-                self.parakeet_model = parakeet_mlx.from_pretrained(self.selected_asr_model)
-                self._log_status("Parakeet model loaded successfully", "grey")
-            except Exception as e:
-                self._log_status(f"Failed to load Parakeet model: {e}", "red")
-                raise RuntimeError(f"Failed to load Parakeet model: {e}") from e
-        else:
+        # Light mode to avoid heavy model loads (set CT_LIGHT_MODE=1 to enable)
+        self._light_mode = os.getenv("CT_LIGHT_MODE", "0") == "1"
+        if self._light_mode:
+            self._log_status("CT_LIGHT_MODE enabled - skipping heavy ASR model loads", "orange")
             self.parakeet_model = None
+            self.local_model_path_prepared = "./mock_model_path"
+        
+        
+        # Load Parakeet model if needed (skip in light mode)
+        if not self._light_mode:
+            if self.model_type == "parakeet" and PARAKEET_MLX_AVAILABLE:
+                try:
+                    self._log_status(f"Loading Parakeet model: {self.selected_asr_model}", "grey")
+                    self.parakeet_model = parakeet_mlx.from_pretrained(self.selected_asr_model)
+                    self._log_status("Parakeet model loaded successfully", "grey")
+                except Exception as e:
+                    self._log_status(f"Failed to load Parakeet model: {e}", "red")
+                    raise RuntimeError(f"Failed to load Parakeet model: {e}") from e
+            else:
+                self.parakeet_model = None
 
         # Check if we're in a CI environment (missing key dependencies)
         if not MLX_WHISPER_AVAILABLE and not PARAKEET_MLX_AVAILABLE:
@@ -188,8 +248,8 @@ class TranscriptionHandler:
                 # Decide if this is fatal or if we can proceed without saving temp files
                 raise RuntimeError(f"Failed to create temp audio folder: {e}") from e
 
-        # Only prepare local model copy for Whisper models (Parakeet models don't need it)
-        if self.model_type == "whisper":
+        # Only prepare local model copy for Whisper models using MLX backend
+        if self.model_type == "whisper" and self._whisper_backend == "mlx" and not self._light_mode:
             self._log_status(
                 f"Preparing local copy of Whisper model: {self.selected_asr_model}", "grey"
             )
@@ -208,10 +268,65 @@ class TranscriptionHandler:
                     f"Failed to prepare local Whisper model: {e}",
                 )
                 raise
-        else:
+        elif not self._light_mode and self.model_type == "parakeet":
             # For Parakeet models, we use the model ID directly
             self.local_model_path_prepared = self.selected_asr_model
             self._log_status(f"Parakeet model will be used directly: {self.selected_asr_model}", "grey")
+
+    def update_selected_asr_model(self, new_model_id: str):
+        """Update ASR model at runtime and prepare required resources."""
+        if not new_model_id or new_model_id == self.selected_asr_model:
+            # No change
+            return
+        self._log_status(f"Updating ASR model to: {new_model_id}", "orange")
+        self.selected_asr_model = new_model_id
+        # Recompute model type
+        self.model_type = self._detect_model_type(self.selected_asr_model)
+        self._log_status(f"Detected model type: {self.model_type} for {self.selected_asr_model}", "grey")
+        
+        # Reset model-specific resources
+        self.parakeet_model = None
+        self.local_model_path_prepared = None
+        
+        # Respect light mode - avoid heavy loads and downloads
+        if getattr(self, "_light_mode", False):
+            self._log_status("CT_LIGHT_MODE enabled - deferring heavy ASR model setup", "orange")
+            self.local_model_path_prepared = "./mock_model_path"
+            return
+
+        # Handle CI/mock mode quickly
+        if not MLX_WHISPER_AVAILABLE and not PARAKEET_MLX_AVAILABLE:
+            self._log_status("ASR update in CI mode - dependencies mocked", "orange")
+            self.local_model_path_prepared = "./mock_model_path"
+            return
+        
+        try:
+            if self.model_type == "parakeet":
+                if PARAKEET_MLX_AVAILABLE:
+                    self._log_status(f"Loading Parakeet model: {self.selected_asr_model}", "grey")
+                    self.parakeet_model = parakeet_mlx.from_pretrained(self.selected_asr_model)
+                    self._log_status("Parakeet model loaded successfully", "grey")
+                    # For Parakeet models, path is just the model id
+                    self.local_model_path_prepared = self.selected_asr_model
+                else:
+                    self._log_status("Parakeet library not available; cannot load model.", "red")
+                    raise RuntimeError("Parakeet library not available")
+            else:
+                # Whisper path handling
+                self._log_status(
+                    f"Preparing local copy of Whisper model: {self.selected_asr_model}",
+                    "grey",
+                )
+                self.local_model_path_prepared = self._prepare_local_model_copy(
+                    self.selected_asr_model
+                )
+                self._log_status(
+                    f"Local Whisper model prepared at: {self.local_model_path_prepared}",
+                    "grey",
+                )
+        except Exception as e:
+            self._log_status(f"Failed to update ASR model '{self.selected_asr_model}': {e}", "red")
+            raise
 
     def _detect_model_type(self, model_id: str) -> str:
         """
@@ -233,9 +348,30 @@ class TranscriptionHandler:
             self._log_status(f"Unknown model type for {model_id}, defaulting to whisper", "orange")
             return "whisper"
 
+    def _detect_whisper_backend(self, model_id: str) -> str:
+        """Return 'mlx' for MLX-native repos, otherwise 'transformers'."""
+        if not model_id:
+            return "mlx"
+        mid = model_id.lower()
+        if mid.startswith("mlx-community/"):
+            return "mlx"
+        # Known non-MLX repos commonly using HF Transformers
+        if any(mid.startswith(p) for p in [
+            "openai/", "na0s/", "crystalcareai/", "distil-whisper/"
+        ]):
+            return "transformers"
+        # Default to MLX if unknown
+        return "mlx"
+
     def _log_status(self, message, color="black"):
         """Helper to call the status update callback if available."""
-        print(f"TranscriptionHandler Status: {message}")  # Also print to console
+        # Only mirror to console if minimal terminal mode is disabled
+        try:
+            from src.config import config as _cfg
+            if not getattr(_cfg, "MINIMAL_TERMINAL_OUTPUT", False):
+                print(f"TranscriptionHandler Status: {message}")
+        except Exception:
+            print(f"TranscriptionHandler Status: {message}")
         if self.on_status_update:
             self.on_status_update(message, color)
 
@@ -249,9 +385,9 @@ class TranscriptionHandler:
             # Using a subdirectory within TEMP_AUDIO_FOLDER or a dedicated 'models_cache' folder.
             # For simplicity, let's use a 'models_cache' in the app's root for now.
             # Ensure this path is robust or configurable if needed.
-            app_root = os.path.dirname(
-                os.path.abspath(__file__)
-            )  # Gets directory of transcription_handler.py
+            # app_root = os.path.dirname(
+            #     os.path.abspath(__file__)
+            # )  # Gets directory of transcription_handler.py
             # To place it in the main project root, assuming standard structure:
             # project_root = os.path.dirname(app_root)
             # For now, let's put it inside TEMP_AUDIO_FOLDER to keep related temp files together
@@ -312,6 +448,10 @@ class TranscriptionHandler:
                 "prediction_loss_only",
                 "remove_unused_columns"
             ]
+            # Also remove certain HF metadata keys not supported by mlx_whisper ModelDimensions
+            incompatible_keys.extend([
+                "_name_or_path",
+            ])
             
             for key in incompatible_keys:
                 if key in model_config_json:
@@ -320,6 +460,30 @@ class TranscriptionHandler:
                         f"'{key}' key removed from local config.json (incompatible with mlx-whisper)", "yellow"
                     )
                     config_modified = True
+
+            # For Whisper via mlx_whisper, keep only essential architectural keys
+            # to avoid unexpected kwargs in ModelDimensions
+            try:
+                allowed_keys = {
+                    "d_model",
+                    "decoder_attention_heads",
+                    "decoder_layers",
+                    "encoder_attention_heads",
+                    "encoder_layers",
+                    "num_mel_bins",
+                    "vocab_size",
+                    "num_hidden_layers",
+                }
+                filtered = {k: v for k, v in model_config_json.items() if k in allowed_keys}
+                # Only replace if it reduces keys (avoid accidental expansion)
+                if len(filtered) < len(model_config_json):
+                    model_config_json = filtered
+                    config_modified = True
+                    self._log_status(
+                        "Pruned config.json to essential keys for mlx-whisper", "yellow"
+                    )
+            except Exception:
+                pass
 
             if config_modified:
                 with open(config_path, "w") as f:
@@ -335,7 +499,7 @@ class TranscriptionHandler:
             )
             raise
 
-    def _save_temp_audio(self, audio_data: np.ndarray) -> str:
+    def _save_temp_audio(self, audio_data) -> str:
         """Saves audio data to a temporary WAV file."""
         timestamp = int(time.time() * 1000)
         filename = os.path.join(self._temp_folder, f"temp_{timestamp}.wav")
@@ -354,7 +518,7 @@ class TranscriptionHandler:
             )
             return None  # Indicate failure
 
-    def _load_audio_from_file(self, filename: str) -> np.ndarray:
+    def _load_audio_from_file(self, filename: str):
         """Loads audio data from a WAV file."""
         try:
             with wave.open(filename, "rb") as wf:
@@ -378,7 +542,7 @@ class TranscriptionHandler:
                 )
 
     def transcribe_audio_data(
-        self, audio_data: np.ndarray, prompt: str = config.DEFAULT_WHISPER_PROMPT
+        self, audio_data, prompt: str = config.DEFAULT_WHISPER_PROMPT
     ):
         """
         Transcribes the given audio data in a separate thread.
@@ -405,7 +569,7 @@ class TranscriptionHandler:
         )
         thread.start()
 
-    def _transcribe_thread_worker(self, audio_data: np.ndarray, prompt: str):
+    def _transcribe_thread_worker(self, audio_data, prompt: str):
         """Worker function for the transcription thread."""
         self._log_status("Starting transcription process...", "blue")
         filename = None
@@ -457,21 +621,76 @@ class TranscriptionHandler:
                         raw_text = str(result).strip()
                     
             else:  # whisper model
-                self._log_status(f"Using MLX-Whisper for transcription with model: {self.selected_asr_model}", "blue")
-                
-                if not MLX_WHISPER_AVAILABLE:
-                    raw_text = "[MOCK WHISPER TRANSCRIPTION] Test transcription result"
-                    self._log_status("Whisper transcription mocked - mlx_whisper not available", "orange")
+                if self._whisper_backend == "transformers":
+                    # Use Transformers path directly for non-MLX repos
+                    self._log_status(f"Using Transformers-Whisper for transcription with model: {self.selected_asr_model}", "blue")
+                    if TRANSFORMERS_AVAILABLE and TORCH_AVAILABLE:
+                        raw_text = self._transcribe_with_transformers_whisper(filename, self.selected_asr_model, prompt)
+                    else:
+                        raise RuntimeError("Transformers/Torch not available for selected Whisper model")
                 else:
-                    # Use mlx_whisper for transcription
-                    result = mlx_whisper.transcribe(
-                        filename,  # Pass file path
-                        language="en",
-                        fp16=False,
-                        prompt=prompt,
-                        path_or_hf_repo=self.local_model_path_prepared,
-                    )
-                    raw_text = result.get("text", "").strip()
+                    self._log_status(f"Using MLX-Whisper for transcription with model: {self.selected_asr_model}", "blue")
+                    if not MLX_WHISPER_AVAILABLE:
+                        raw_text = "[MOCK WHISPER TRANSCRIPTION] Test transcription result"
+                        self._log_status("Whisper transcription mocked - mlx_whisper not available", "orange")
+                    else:
+                        # Ensure a valid model path or repo id is available
+                        model_path_or_repo = self.local_model_path_prepared or self.selected_asr_model
+                        fallback_attempted = False
+                        while True:
+                            try:
+                                if not model_path_or_repo:
+                                    # Last-resort: attempt to prepare local copy now
+                                    self.local_model_path_prepared = self._prepare_local_model_copy(self.selected_asr_model)
+                                    model_path_or_repo = self.local_model_path_prepared
+                                    self._log_status(
+                                        f"Prepared Whisper model on-demand at: {model_path_or_repo}",
+                                        "grey",
+                                    )
+                                # Use mlx_whisper for transcription
+                                result = mlx_whisper.transcribe(
+                                    filename,
+                                    language="en",
+                                    fp16=False,
+                                    prompt=prompt,
+                                    path_or_hf_repo=model_path_or_repo,
+                                )
+                                raw_text = result.get("text", "").strip()
+                                break
+                            except Exception as whisper_error:
+                                # Fallback once to a known-good ASR if third-party whisper repo is incompatible
+                                if fallback_attempted:
+                                    raise
+                                fallback_attempted = True
+                                # Prefer fallback to a known-good MLX Whisper base; if still not possible, try Transformers
+                                self._log_status(
+                                    f"Whisper model '{self.selected_asr_model}' incompatible ({whisper_error}). Applying fallback...",
+                                    "orange",
+                                )
+                                # Attempt MLX base large-v3
+                                model_path_or_repo = "mlx-community/whisper-large-v3-turbo"
+                                try:
+                                    result = mlx_whisper.transcribe(
+                                        filename,
+                                        language="en",
+                                        fp16=False,
+                                        prompt=prompt,
+                                        path_or_hf_repo=model_path_or_repo,
+                                    )
+                                    raw_text = result.get("text", "").strip()
+                                    break
+                                except Exception:
+                                    # As last resort, try Transformers pipeline for the originally selected HF model
+                                    if TRANSFORMERS_AVAILABLE and TORCH_AVAILABLE:
+                                        self._log_status("Trying Transformers Whisper fallback pipeline...", "orange")
+                                        try:
+                                            raw_text = self._transcribe_with_transformers_whisper(filename, self.selected_asr_model, prompt)
+                                            break
+                                        except Exception as tf_err:
+                                            self._log_status(f"Transformers fallback failed: {tf_err}", "red")
+                                            raise
+                                    else:
+                                        raise
 
             end_time = time.time()
             transcription_time = end_time - start_time
@@ -513,6 +732,43 @@ class TranscriptionHandler:
                 # The callback is handled by main.py which uses a queue, so it's safe.
                 self.on_transcription_complete(raw_text, transcription_time)
 
+    def _transcribe_with_transformers_whisper(self, audio_path: str, model_id: str, prompt: str) -> str:
+        if not (TRANSFORMERS_AVAILABLE and TORCH_AVAILABLE):
+            raise RuntimeError("Transformers/Torch not available for Whisper fallback")
+        device = "mps" if hasattr(torch.backends, "mps") and torch.backends.mps.is_available() else "cpu"
+        torch_dtype = torch.float16 if device == "mps" else torch.float32
+        # Cache pipelines per model
+        if not hasattr(self, "_hf_pipes"):
+            self._hf_pipes = {}
+        if model_id not in self._hf_pipes:
+            processor = AutoProcessor.from_pretrained(model_id)
+            model = AutoModelForSpeechSeq2Seq.from_pretrained(
+                model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True
+            )
+            if device != "cpu":
+                model.to(device)
+            pipe = hf_pipeline(
+                "automatic-speech-recognition",
+                model=model,
+                tokenizer=processor.tokenizer,
+                feature_extractor=processor.feature_extractor,
+                torch_dtype=torch_dtype,
+                device=0 if device != "cpu" else -1,
+            )
+            self._hf_pipes[model_id] = pipe
+        else:
+            pipe = self._hf_pipes[model_id]
+        # Whisper models typically cap target length at 448 tokens (max_target_positions)
+        # Keep a safety margin to account for special/prompt tokens
+        safe_max_new_tokens = 440
+        gen_kwargs = {
+            "max_new_tokens": safe_max_new_tokens,
+            "num_beams": 1,
+            "condition_on_prev_tokens": False,
+        }
+        result = pipe(audio_path, generate_kwargs=gen_kwargs)
+        return (result.get("text") or "").strip()
+
 
 # Example Usage (for testing purposes)
 if __name__ == "__main__":
@@ -530,10 +786,10 @@ if __name__ == "__main__":
     import pyaudio  # Needed for get_sample_size in _save_temp_audio
 
     def transcription_done(text, duration):
-        print(f"\n--- TRANSCRIPTION COMPLETE ---")
+        print("\n--- TRANSCRIPTION COMPLETE ---")
         print(f"Duration: {duration:.2f} seconds")
         print(f"Text: {text}")
-        print(f"----------------------------\n")
+        print("----------------------------\n")
 
     def status_update(message, color):
         print(f"--- STATUS [{color}]: {message} ---")

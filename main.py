@@ -19,7 +19,11 @@ try:
 except ImportError:
     # Quartz not available (CI environment or non-macOS)
     QUARTZ_AVAILABLE = False
-    print("[WARN] Quartz.CoreGraphics not available - clipboard functionality will be limited")
+    try:
+        if not getattr(config, "MINIMAL_TERMINAL_OUTPUT", False):
+            print("[WARN] Quartz.CoreGraphics not available - clipboard functionality will be limited")
+    except Exception:
+        print("[WARN] Quartz.CoreGraphics not available - clipboard functionality will be limited")
 
 # Make pynput imports conditional for CI compatibility
 try:
@@ -28,7 +32,11 @@ try:
 except ImportError:
     # pynput not available (CI environment)
     PYNPUT_AVAILABLE = False
-    print("[WARN] pynput not available - hotkey functionality will be limited")
+    try:
+        if not getattr(config, "MINIMAL_TERMINAL_OUTPUT", False):
+            print("[WARN] pynput not available - hotkey functionality will be limited")
+    except Exception:
+        print("[WARN] pynput not available - hotkey functionality will be limited")
     # Create a minimal mock keyboard module for imports
     class MockKeyboard:
         class Key:
@@ -70,7 +78,12 @@ from src.memory_monitor import (
 
 import src.memory_monitor as mm_module  # Import with an alias
 
-print(f"[DEBUG_PATH] memory_monitor module loaded from: {mm_module.__file__}")
+# Suppress noisy debug path print in minimal terminal mode
+try:
+    if not getattr(config, "MINIMAL_TERMINAL_OUTPUT", False):
+        print(f"[DEBUG_PATH] memory_monitor module loaded from: {mm_module.__file__}")
+except Exception:
+    pass
 
 # Removed GUI import
 
@@ -81,12 +94,42 @@ os.environ["TOKENIZERS_PARALLELISM"] = config.TOKENIZERS_PARALLELISM
 from src.config.settings_manager import settings_manager
 from src.text_processor import text_processor
 
+def _sanitize_for_legacy_clipboards(text: str) -> str:
+    """Replace non-breaking hyphens, non-breaking spaces, smart quotes, and narrow no-break spaces.
+    Keeps ASCII punctuation to improve compatibility with older apps.
+    """
+    if not text:
+        return text
+    replacements = {
+        "\u2011": "-",   # non-breaking hyphen → hyphen
+        "\u2010": "-",   # hyphen
+        "\u2013": "-",   # en dash → hyphen
+        "\u2014": "-",   # em dash → hyphen
+        "\u00A0": " ",   # non-breaking space → space
+        "\u202F": " ",   # narrow no-break space → space
+        "\u2009": " ",   # thin space → space
+        "\u200A": " ",   # hair space → space
+        "\u00AD": "",    # soft hyphen → remove
+        "\u2018": "'",   # left single quote → '
+        "\u2019": "'",   # right single quote → '
+        "\u201C": '"',   # left double quote → "
+        "\u201D": '"',   # right double quote → "
+        "\u2026": "...", # ellipsis
+    }
+    out = text
+    for k, v in replacements.items():
+        out = out.replace(k, v)
+    return out
+
+
 def send_text_to_citrix(text):
     """Copies text to clipboard and simulates Cmd+V."""
     if not text:
         print("No text provided to send.")
         return
     try:
+        if getattr(config, "SANITIZE_CLIPBOARD_FOR_LEGACY", True):
+            text = _sanitize_for_legacy_clipboards(text)
         # Use pbcopy for clipboard access on macOS
         process = subprocess.Popen(
             "pbcopy", env={"LANG": "en_US.UTF-8"}, stdin=subprocess.PIPE
@@ -151,9 +194,16 @@ class Application:
         self.llm_handler.update_selected_models(saved_proofing_model, saved_letter_model)
         self.llm_handler.update_prompts(saved_proofing_prompt, saved_letter_prompt)
         log_text("INIT", f"LLM configured with saved settings - Proofing: {saved_proofing_model}, Letter: {saved_letter_model}")
+        # Also surface a concise one-liner to stdout about selected models
+        try:
+            print(f"MODELS:proof='{saved_proofing_model}' letter='{saved_letter_model}'", flush=True)
+        except Exception:
+            pass
         
-        # Initialize TranscriptionHandler with saved ASR model
+        # Initialize TranscriptionHandler with saved ASR model, coalescing to default if empty/invalid
         saved_asr_model = settings_manager.get_setting("selectedAsrModel", config.DEFAULT_ASR_MODEL)
+        if not saved_asr_model:
+            saved_asr_model = config.DEFAULT_ASR_MODEL
         self.transcription_handler = TranscriptionHandler(
             on_transcription_complete_callback=self._handle_transcription_complete,
             on_status_update_callback=self._handle_status_update,
@@ -171,49 +221,39 @@ class Application:
 
         # --- Initial Setup ---
         self._handle_status_update("Application initializing...", "grey")
-        # Load the default LLM model in a separate thread
-        default_llm_key = next(
-            (
-                key
-                for key, value in config.AVAILABLE_LLMS.items()
-                if value == config.DEFAULT_LLM
-            ),
-            None,
-        )
-        if default_llm_key:
-            log_text(
-                "INIT", f"Starting background load for default LLM: {default_llm_key}"
+        # Optional background preload of the selected proofing model (disabled by default)
+        preload_env = os.getenv("CT_PRELOAD_LLM", "0").strip().lower()
+        preload_enabled = preload_env in ("1", "true", "yes", "on")
+        if preload_enabled:
+            # Preload the currently selected proofing model (not the config default) to avoid cold start
+            preload_target_id = saved_proofing_model
+            preload_key = next(
+                (key for key, value in config.AVAILABLE_LLMS.items() if value == preload_target_id),
+                None,
             )
+            if preload_key:
+                log_text(
+                    "INIT", f"Starting background preload for selected proofing LLM: {preload_key}"
+                )
 
-            # Define a callback for when loading finishes
-            def on_default_load_complete(success):
-                if success:
-                    log_text(
-                        "INIT",
-                        f"Default LLM '{default_llm_key}' loaded successfully in background.",
-                    )
-                    # Optionally update status ONLY if successful, avoid overwriting other messages
-                    # self._handle_status_update(f"Default LLM '{default_llm_key}' ready.", "grey")
-                else:
-                    log_text(
-                        "INIT_ERROR",
-                        f"Background load failed for default LLM: {default_llm_key}",
-                    )
-                    self._handle_status_update(
-                        f"Error loading default LLM: {default_llm_key}", "red"
-                    )
+                def on_preload_complete(success):
+                    if success:
+                        log_text(
+                            "INIT",
+                            f"Selected LLM '{preload_key}' loaded successfully in background.",
+                        )
+                    else:
+                        log_text(
+                            "INIT_ERROR",
+                            f"Background preload failed for LLM: {preload_key}",
+                        )
+                        self._handle_status_update(
+                            f"Error loading selected LLM: {preload_key}", "red"
+                        )
 
-            threading.Thread(
-                target=self.llm_handler.load_model,
-                args=(default_llm_key, on_default_load_complete),
-                daemon=True,
-            ).start()
-        else:
-            log_text(
-                "INIT_ERROR",
-                f"Default LLM path '{config.DEFAULT_LLM}' not found in AVAILABLE_LLMS configuration.",
-            )
-            self._handle_status_update(f"Error: Default LLM config invalid.", "red")
+                threading.Thread(
+                    target=self.llm_handler.load_model, args=(preload_key, on_preload_complete), daemon=True
+                ).start()
 
     def start_backend(self):
         """Starts the application's background processes (Hotkeys only initially)."""
@@ -394,11 +434,8 @@ class Application:
         self._handle_status_update("Speech ended. Transcribing...", "orange")
         self._update_app_state()  # Update state to processing
 
-        # Pass audio data to transcription handler, always using the current selected ASR model
-        # Ensure the transcription handler uses the up-to-date selected_asr_model
-        self.transcription_handler.selected_asr_model = getattr(
-            self, "selected_asr_model", self.transcription_handler.selected_asr_model
-        )
+        # Ensure the transcription handler uses the up-to-date selected ASR model
+        # (If runtime changes happened via CONFIG, model resources are already prepared)
         self.transcription_handler.transcribe_audio_data(
             audio_data, config.DEFAULT_WHISPER_PROMPT
         )
@@ -451,32 +488,19 @@ class Application:
             elif self._current_processing_mode == "proofread":
                 # For proofread mode, start LLM processing (don't finish yet)
                 self._handle_status_update("Starting proofreading with LLM...", "orange")
-                if self.llm_handler._model is None:
-                    self._handle_status_update("Proofread Error: LLM is not loaded.", "red")
-                    # Reset state on error
-                    self._current_processing_mode = None
-                    self.hotkey_manager.set_dictating_state(False)
-                    self.audio_handler.set_listening_state("activation")
-                    self._update_app_state()
-                else:
-                    # Start LLM processing - state will be reset in _handle_llm_complete
-                    prompt = self._current_prompt or settings_manager.get_setting('proofingPrompt', 'Proofread and improve this text:')
-                    self.llm_handler.process_text(processed_text, "proofread", prompt)
+                # Always call process_text; it will load the model on demand if needed
+                prompt = self._current_prompt or settings_manager.get_setting('proofingPrompt', 'Proofread and improve this text:')
+                # Print full dictation preview (no truncation). Escape newlines to keep a single IPC line.
+                preview = processed_text.replace("\n", "\\n").replace("\r", "\\r")
+                print(f"DICTATION_PREVIEW:{preview}", flush=True)
+                self.llm_handler.process_text(processed_text, "proofread", prompt)
                     
             elif self._current_processing_mode == "letter":
                 # For letter mode, start LLM processing (don't finish yet)
                 self._handle_status_update("Formatting as letter with LLM...", "orange")
-                if self.llm_handler._model is None:
-                    self._handle_status_update("Letter Error: LLM is not loaded.", "red")
-                    # Reset state on error
-                    self._current_processing_mode = None
-                    self.hotkey_manager.set_dictating_state(False)
-                    self.audio_handler.set_listening_state("activation")
-                    self._update_app_state()
-                else:
-                    # Start LLM processing - state will be reset in _handle_llm_complete
-                    prompt = self._current_prompt or settings_manager.get_setting('letterPrompt', 'Format this as a professional letter:')
-                    self.llm_handler.process_text(processed_text, "letter", prompt)
+                # Always call process_text; it will load the model on demand if needed
+                prompt = self._current_prompt or settings_manager.get_setting('letterPrompt', 'Format this as a professional letter:')
+                self.llm_handler.process_text(processed_text, "letter", prompt)
             else:
                 # Unknown mode or None - just finish
                 self._handle_status_update("Transcription complete.", "green")
@@ -641,6 +665,7 @@ class Application:
         self._handle_status_update("Processing with LLM (proofread mode)...", "orange")
         self._current_processing_mode = "proofread"  # Set mode for LLM callback
         self._current_prompt = prompt  # Store prompt for LLM handler
+        # Defensive: ensure selected model resolves before calling
         self.llm_handler.process_text(text, "proofread", prompt)
 
     def _trigger_letter(self, text: str, prompt: str):
@@ -945,15 +970,20 @@ if __name__ == "__main__":
 
                     # Handle selected ASR model from config
                     if "selectedAsrModel" in received_config:
-                        app.transcription_handler.selected_asr_model = received_config[
-                            "selectedAsrModel"
-                        ]
-                        # Save ASR model selection to persistent settings
-                        settings_manager.set_setting("selectedAsrModel", received_config["selectedAsrModel"], save=False)
-                        log_text(
-                            "CONFIG",
-                            f"ASR model set to: {received_config['selectedAsrModel']}",
-                        )
+                        try:
+                            app.transcription_handler.update_selected_asr_model(
+                                received_config["selectedAsrModel"]
+                            )
+                            # Save ASR model selection to persistent settings
+                            settings_manager.set_setting(
+                                "selectedAsrModel", received_config["selectedAsrModel"], save=False
+                            )
+                            log_text(
+                                "CONFIG",
+                                f"ASR model set to: {received_config['selectedAsrModel']}",
+                            )
+                        except Exception as e:
+                            log_text("CONFIG_ERROR", f"Failed to update ASR model: {e}")
                     else:
                         log_text(
                             "CONFIG_WARN",
