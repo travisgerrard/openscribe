@@ -40,6 +40,7 @@ except ImportError:
 import time
 import os
 import wave
+import shutil
 
 try:
     import mlx_whisper
@@ -380,42 +381,51 @@ class TranscriptionHandler:
             self.on_status_update(message, color)
 
     def _prepare_local_model_copy(self, hf_repo_id: str) -> str:
-        """Prepare local copy for Whisper models only."""
-        self._log_status(f"Downloading/locating model: {hf_repo_id}", "blue")
+        """Ensure a local model copy exists under models/, migrating cache if needed."""
+        self._log_status(f"Preparing model locally: {hf_repo_id}", "blue")
+        # Target nested directory inside models/, e.g., models/mlx-community/whisper-large-v3-turbo
+        target_dir = os.path.join(config.MODELS_ROOT, hf_repo_id.replace("/", os.sep))
+        target_parent = os.path.dirname(target_dir)
         try:
-            # Download the model snapshot, this will return the path to the local cache
-            # or use existing cache if already downloaded.
-            # We use a specific local_dir to ensure we know where to find and modify it.
-            # Using a subdirectory within TEMP_AUDIO_FOLDER or a dedicated 'models_cache' folder.
-            # For simplicity, let's use a 'models_cache' in the app's root for now.
-            # Ensure this path is robust or configurable if needed.
-            # app_root = os.path.dirname(
-            #     os.path.abspath(__file__)
-            # )  # Gets directory of transcription_handler.py
-            # To place it in the main project root, assuming standard structure:
-            # project_root = os.path.dirname(app_root)
-            # For now, let's put it inside TEMP_AUDIO_FOLDER to keep related temp files together
-            # but this might be re-downloaded if TEMP_AUDIO_FOLDER is cleared often.
-            # A better place might be a dedicated 'model_cache' directory.
-            # Let's create a 'model_cache' directory next to TEMP_AUDIO_FOLDER if it doesn't exist.
-            model_cache_dir = os.path.join(
-                os.path.dirname(config.TEMP_AUDIO_FOLDER), "model_cache_whisper"
-            )
-            if not os.path.exists(model_cache_dir):
-                os.makedirs(model_cache_dir)
-                self._log_status(
-                    f"Created model cache directory: {model_cache_dir}", "grey"
-                )
+            # Ensure models root and nested parent exist
+            if not os.path.exists(target_parent):
+                os.makedirs(target_parent, exist_ok=True)
+                self._log_status(f"Created models directory: {target_parent}", "grey")
 
-            local_model_path = snapshot_download(
-                repo_id=hf_repo_id,
-                local_dir=os.path.join(model_cache_dir, hf_repo_id.replace("/", "_")),
-                local_dir_use_symlinks=False,
-            )
+            # 1) If already present under models/, use it
+            if os.path.isdir(target_dir) and os.path.isfile(os.path.join(target_dir, "config.json")):
+                self._log_status(f"Found existing model in models/: {target_dir}", "grey")
+                local_model_path = target_dir
+            else:
+                # 2) Try to migrate from old cache location model_cache_whisper/<repo_underscored>
+                legacy_cache_dir = os.path.join(
+                    os.path.dirname(config.TEMP_AUDIO_FOLDER),
+                    "model_cache_whisper",
+                    hf_repo_id.replace("/", "_")
+                )
+                if os.path.isdir(legacy_cache_dir):
+                    # Move legacy cache into models/<org>/<repo>
+                    self._log_status(f"Migrating model from cache: {legacy_cache_dir} → {target_dir}", "orange")
+                    if os.path.exists(target_dir):
+                        shutil.rmtree(target_dir, ignore_errors=True)
+                    shutil.move(legacy_cache_dir, target_dir)
+                    local_model_path = target_dir
+                else:
+                    # 3) Download directly into models/
+                    self._log_status(f"Downloading model into: {target_dir}", "blue")
+                    local_model_path = snapshot_download(
+                        repo_id=hf_repo_id,
+                        local_dir=target_dir,
+                        local_dir_use_symlinks=False,
+                    )
+                    # snapshot_download may return the same local_dir; ensure directory exists
+                    if not os.path.isdir(local_model_path):
+                        os.makedirs(local_model_path, exist_ok=True)
+
             self._log_status(f"Model files located at: {local_model_path}", "grey")
         except Exception as e:
             self._log_status(
-                f"Error downloading model snapshot for {hf_repo_id}: {e}", "red"
+                f"Error preparing local model for {hf_repo_id}: {e}", "red"
             )
             raise
 

@@ -85,6 +85,9 @@ LOG_FILE = resolve_resource_path("transcript_log.txt")
 TEMP_AUDIO_FOLDER = resolve_resource_path("temp_audio")
 CHIME_SOUND_FILE = resolve_resource_path("chime.wav")  # Currently unused, but kept for potential future use
 
+# Centralized models root so all components agree where models live on disk
+MODELS_ROOT = resolve_resource_path("models")
+
 # --- Model Configurations ---
 LLM_TEMPERATURE = 0.1  # Controls randomness, lower is more deterministic
 LLM_SAMPLERS = []  # e.g., ["top_k", "top_p"] if supported and desired
