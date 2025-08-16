@@ -115,7 +115,7 @@ function startPythonShell(onMessage, onError, onClose) {
     // Use PythonShell for development
     const options = {
       mode: 'text',
-      pythonPath: '/Users/travisgerrard/Documents/Apps/CitrixTranscriberPython/whisper_env/bin/python',
+      pythonPath: process.env.PYTHON_PATH || 'python3', // Use environment variable or default to python3
       pythonOptions: ['-u'],
       scriptPath: backendConfig.scriptPath
     };
@@ -125,9 +125,15 @@ function startPythonShell(onMessage, onError, onClose) {
     pythonShell = new PythonShell(backendConfig.script, options);
 
     pythonShell.on('message', (message) => {
-      // Only log non-AUDIO_AMP messages to reduce console spam
-      if (!message.startsWith('AUDIO_AMP:')) {
-        console.log('[ElectronPython] Raw message from Python:', `'${message}'`);
+      // Further reduce console spam: only log important top-level types
+      if (typeof message === 'string') {
+        const trimmed = message.trim();
+        const importantPrefixes = ['PYTHON_BACKEND_READY', 'GET_CONFIG', 'MODELS_LIST:', 'MODEL_SELECTED:', 'MODELS:', 'DICTATION_PREVIEW:', 'FINAL_TRANSCRIPT:', 'TRANSCRIPTION:'];
+        const isImportant = importantPrefixes.some(pfx => trimmed.startsWith(pfx));
+        if (isImportant) {
+          const noTruncate = trimmed.startsWith('FINAL_TRANSCRIPT:') || trimmed.startsWith('DICTATION_PREVIEW:') || trimmed.startsWith('TRANSCRIPTION:');
+          console.log('[ElectronPython]', noTruncate ? trimmed : trimmed.substring(0, 300));
+        }
       }
       if (onMessage) onMessage(message);
     });
@@ -158,16 +164,19 @@ function getPythonShell() {
 function startPythonBackend(mainWindow) {
   const options = {
     mode: 'text',
-    pythonPath: '/Users/travisgerrard/Documents/Apps/CitrixTranscriberPython/whisper_env/bin/python', // Use conda environment
+    pythonPath: process.env.PYTHON_PATH || 'python3', // Use environment variable or default to python3
     pythonOptions: ['-u'], // Unbuffered output
     scriptPath: path.join(__dirname, '..') // Path to main.py (go up from electron/ to root)
   };
   pythonShell = new PythonShell('main.py', options);
 
   pythonShell.on('message', function (message) {
-    // Only log non-AUDIO_AMP messages to reduce console spam
-    if (!message.startsWith('AUDIO_AMP:')) {
-      console.log(`[ElectronPython] Raw message from Python: '${message}'`);
+    // Reduce console spam: log only a whitelist of prefixes
+    const importantPrefixes = ['PYTHON_BACKEND_READY', 'GET_CONFIG', 'MODELS_LIST:', 'MODEL_SELECTED:', 'MODELS:', 'DICTATION_PREVIEW:', 'FINAL_TRANSCRIPT:', 'TRANSCRIPTION:'];
+    const isImportant = importantPrefixes.some(pfx => message.startsWith(pfx));
+    if (isImportant) {
+      const noTruncate = message.startsWith('FINAL_TRANSCRIPT:') || message.startsWith('DICTATION_PREVIEW:') || message.startsWith('TRANSCRIPTION:');
+      console.log(`[ElectronPython] ${noTruncate ? message : message.substring(0, 300)}`);
     }
 
     if (typeof message !== 'string') {
@@ -199,7 +208,7 @@ function startPythonBackend(mainWindow) {
 
     // Handle STATE messages from Python
     if (trimmedMessage.startsWith('STATE:')) {
-      console.log('[ElectronPython] Processing STATE message.');
+    // Verbose; suppress logging of every STATE message to keep console clean
       try {
         const stateContent = trimmedMessage.substring('STATE:'.length);
 
@@ -241,7 +250,7 @@ function startPythonBackend(mainWindow) {
         }
 
         const stateJson = jsonEndIndex > 0 ? stateContent.substring(0, jsonEndIndex) : stateContent;
-        console.log('[ElectronPython] Extracted JSON:', stateJson);
+        // Suppress echoing full state JSON to console to reduce noise
 
         const state = JSON.parse(stateJson);
         // const mainWin = mainWindow; // mainWindow is from the startPythonBackend closure
@@ -310,7 +319,9 @@ function startPythonBackend(mainWindow) {
       if (firstColonIndex !== -1) {
         const color = statusContent.substring(0, firstColonIndex);
         const messageText = statusContent.substring(firstColonIndex + 1);
-        console.log('[ElectronPython] STATUS message color:', color);
+        if (process.env.CT_ELECTRON_VERBOSE === '1') {
+          console.log('[ElectronPython] STATUS message color:', color);
+        }
 
         // Only update tray icon for very specific state-changing messages
         let shouldUpdateTray = false;
@@ -331,9 +342,11 @@ function startPythonBackend(mainWindow) {
         }
 
         if (shouldUpdateTray) {
-          console.log('[ElectronPython] Updating tray icon to state:', trayState);
+          if (process.env.CT_ELECTRON_VERBOSE === '1') {
+            console.log('[ElectronPython] Updating tray icon to state:', trayState);
+          }
           setTrayIconByState(trayState);
-        } else {
+        } else if (process.env.CT_ELECTRON_VERBOSE === '1') {
           console.log('[ElectronPython] Not updating tray icon for this STATUS message');
         }
       }
@@ -341,9 +354,8 @@ function startPythonBackend(mainWindow) {
       // Continue to forward to renderer for UI updates
     }
 
-    // Fall-through for other messages - forward to renderer
-    // Only log non-AUDIO_AMP forwarding to reduce console spam
-    if (!trimmedMessage.startsWith('AUDIO_AMP:')) {
+    // Fall-through for other messages - forward to renderer quietly
+    if (process.env.CT_ELECTRON_VERBOSE === '1' && !trimmedMessage.startsWith('AUDIO_AMP:')) {
       console.log(`[ElectronPython] Forwarding unhandled message to renderer: '${trimmedMessage}'`);
     }
     // const mainWin = mainWindow; // mainWindow is from the startPythonBackend closure

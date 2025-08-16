@@ -144,23 +144,55 @@
     <section id="install" class="two-col">
       <div class="card">
         <h2 style="margin-top:0">Quick install</h2>
-        <p class="muted">Clone the repo, install dependencies, then run. First launch fetches models automatically (can take 10–30 minutes depending on connection).</p>
+        <p class="muted">Follow these steps in order. First launch fetches models automatically (can take 10–30 minutes depending on connection).</p>
+        
+        <h3>Prerequisites (install these first)</h3>
+        <div class="code" aria-label="Prerequisites installation">
+          <button class="copy-btn" onclick="copyCode('block-prereq')" title="Copy commands">Copy</button>
+<pre id="block-prereq"><code># 1) Install Homebrew (macOS package manager)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 2) Install Git (if not already installed)
+brew install git
+
+# 3) Install Python 3 (if not already installed)
+brew install python@3.11
+
+# 4) Install Node.js (required for npm)
+brew install node
+
+# 5) Install PortAudio (required for microphone access)
+brew install portaudio</code></pre>
+        </div>
+
+        <h3>Main installation</h3>
         <div class="code" aria-label="Installation code block">
           <button class="copy-btn" onclick="copyCode('block-install')" title="Copy commands">Copy</button>
-<pre id="block-install"><code># 1) Clone
+<pre id="block-install"><code># 1) Clone the repository
 git clone https://github.com/travisgerrard/openscribe.git
 cd openscribe
 
-# 2) Python deps
-pip install -r requirements.txt
+# 2) Install Python dependencies (use pip3 on macOS)
+pip3 install -r requirements.txt
 
-# 3) Node deps
+# 3) Install Node.js dependencies
 npm install
 
-# 4) Start app (auto-downloads models on first run)
+# 4) Start the app (auto-downloads models on first run)
 npm start</code></pre>
         </div>
+        
         <p style="margin-top:10px" class="muted">Prefer manual model download? See advanced steps below.</p>
+        
+        <h3>Common issues & solutions</h3>
+        <ul>
+          <li><strong>"git: command not found"</strong> → Install Git first (step 2 above)</li>
+          <li><strong>"pip: command not found"</strong> → Use <code>pip3</code> instead of <code>pip</code> on macOS</li>
+          <li><strong>"npm: command not found"</strong> → Install Node.js first (step 4 above)</li>
+          <li><strong>PyAudio errors</strong> → Install PortAudio first (step 5 above)</li>
+          <li><strong>Permission errors</strong> → Run Terminal with admin privileges</li>
+          <li><strong>Python path errors</strong> → See troubleshooting section below</li>
+        </ul>
       </div>
       <div class="card">
         <h2 style="margin-top:0">Manual model setup (optional)</h2>
@@ -241,8 +273,33 @@ mkdir -p models vosk
         <ul>
           <li><strong>Models won’t download:</strong> Check internet connection & free disk (&ge;20&nbsp;GB), then relaunch with admin privileges.</li>
           <li><strong>Vosk not found:</strong> Ensure the extracted folder lives under <code>vosk/</code> (e.g., <code>vosk/vosk-model-small-en-us-0.15/</code>).</li>
-          <li><strong>Crashes on start:</strong> Verify Python & Node versions; run <code>pip install -r requirements.txt</code> and <code>npm install</code> again.</li>
+          <li><strong>Crashes on start:</strong> Verify Python & Node versions; run <code>pip3 install -r requirements.txt</code> and <code>npm install</code> again.</li>
+          <li><strong>Microphone not working:</strong> Check System Preferences → Security & Privacy → Microphone permissions for Terminal/your terminal app.</li>
+          <li><strong>PyAudio import errors:</strong> Ensure PortAudio is installed: <code>brew install portaudio</code></li>
+          <li><strong>Permission denied errors:</strong> Run Terminal with admin privileges or check folder permissions.</li>
+          <li><strong>Python version issues:</strong> Use <code>python3</code> and <code>pip3</code> commands on macOS.</li>
+          <li><strong>Python path errors (ENOENT):</strong> The app is looking for a Python path that doesn't exist. Use <code>export PYTHON_PATH=$(which python3)</code> before <code>npm start</code>.</li>
         </ul>
+        
+        <h3>Python path configuration (if you get "ENOENT" errors)</h3>
+        <p class="muted">If you see errors like "spawn /path/to/whisper_env/bin/python ENOENT", the app is looking for a Python path that doesn't exist on your system.</p>
+        <div class="code">
+          <button class="copy-btn" onclick="copyCode('block-python-path')">Copy</button>
+<pre id="block-python-path"><code># Option 1: Set environment variable before starting
+export PYTHON_PATH=$(which python3)
+npm start
+
+# Option 2: Create a startup script
+echo 'export PYTHON_PATH=$(which python3)' > start.sh
+echo 'npm start' >> start.sh
+chmod +x start.sh
+./start.sh
+
+# Option 3: Check your Python installation
+which python3
+python3 --version</code></pre>
+        </div>
+        <p class="muted">The app will now use <code>python3</code> by default, but you can override it with <code>PYTHON_PATH</code> if needed.</p>
       </div>
       <div class="card">
         <h2 style="margin-top:0">For developers</h2>
